@@ -14,6 +14,11 @@
   <a href="https://github.com/anomalyco/opencode/actions/workflows/release.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/release.yml?style=flat-square&branch=dev" /></a>
 </p>
 
+> [!IMPORTANT]
+> **Форк від [𝑴𝒆𝟎𝒘𝒐](https://github.com/Sn0wo2)**: слідкує за upstream `dev` і публікує попередньо зібрані JavaScript-бандли в npm як [`@me0wo/opencode`](https://www.npmjs.com/package/@me0wo/opencode) (`opencode-patcher`) щоразу, коли upstream просувається; npm: єдиний канал розповсюдження.
+>
+> Понад upstream: налаштовувані промпти та моделі **BTW / Goal** (`btw.prompt` / `btw.model` / `goal.prompt` / `goal.model`), налаштовуваний промпт **резюме компакції** (`agents.compaction.system`), автоприйняття, що охоплює сесії субагентів, завантаження плагінів TypeScript у Node (sucrase) та виправлення runtime Bun.
+
 <p align="center">
   <a href="README.md">English</a> |
   <a href="README.zh.md">简体中文</a> |

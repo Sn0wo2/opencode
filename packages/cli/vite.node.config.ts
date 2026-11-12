@@ -153,11 +153,20 @@ export const define = sdk.Plugin.define`
   const effectPluginModule = promisePluginModule
     .replace("opencode.plugin.v2.promise", "opencode.plugin.v2.effect")
     .replace("Promise plugin", "Effect plugin")
-  const promiseToolModule = `export {}`
+  const promiseToolModule = `const sdk = globalThis[Symbol.for("opencode.plugin.v2.promise")]
+if (!sdk) throw new Error("OpenCode Promise plugin SDK is unavailable")
+export const CallID = sdk.Tool.CallID
+export const Error = sdk.Tool.Error
+`
   const effectToolModule = `const sdk = globalThis[Symbol.for("opencode.plugin.v2.effect")]
 if (!sdk) throw new Error("OpenCode Effect plugin SDK is unavailable")
 export const Error = sdk.Tool.Error
 `
+  const tuiModule = `const sdk = globalThis[Symbol.for("opencode.plugin.tui")]
+if (!sdk) throw new Error("OpenCode TUI plugin SDK is unavailable")
+export const Plugin = sdk.Plugin
+export const PluginContextProvider = sdk.PluginContextProvider
+export const usePlugin = sdk.usePlugin`
   return `#!/usr/bin/env -S node ${nodeExecArgv.join(" ")}
 import __cjs_mod__ from "node:module"
 import { chmodSync as __ocChmod, existsSync as __ocExists, lstatSync as __ocLstat, mkdirSync as __ocMkdir, renameSync as __ocRename, rmSync as __ocRm, writeFileSync as __ocWrite } from "node:fs"
@@ -168,6 +177,7 @@ import { fileURLToPath as __ocFileURLToPath } from "node:url"
 const __filename = import.meta.filename
 const __dirname = import.meta.dirname
 const require = __cjs_mod__.createRequire(import.meta.url)
+process.removeAllListeners("warning")
 const __ocPluginModules = ${JSON.stringify({
     "@opencode/plugin": "opencode:plugin-v2",
     "@opencode/plugin/promise/plugin": "opencode:plugin-promise-plugin",
@@ -175,6 +185,8 @@ const __ocPluginModules = ${JSON.stringify({
     "@opencode/plugin/effect": "opencode:plugin-v2-effect",
     "@opencode/plugin/effect/plugin": "opencode:plugin-v2-effect-plugin",
     "@opencode/plugin/effect/tool": "opencode:plugin-v2-effect-tool",
+    "@opencode/plugin/tui": "opencode:plugin-tui",
+    "@opencode/plugin/tui/solid": "opencode:plugin-tui",
   })}
 const __ocPluginSources = ${JSON.stringify({
     "opencode:plugin-v2": promiseModule,
@@ -183,7 +195,21 @@ const __ocPluginSources = ${JSON.stringify({
     "opencode:plugin-v2-effect": effectModule,
     "opencode:plugin-v2-effect-plugin": effectPluginModule,
     "opencode:plugin-v2-effect-tool": effectToolModule,
+    "opencode:plugin-tui": tuiModule,
   })}
+if (typeof Bun !== "undefined" && Bun.plugin) {
+  Bun.plugin({
+    name: "opencode-plugin-modules",
+    setup(build) {
+      for (const specifier of ["@opencode/plugin/tui", "@opencode/plugin/tui/solid"])
+        build.module(specifier, () => {
+          const exports = globalThis[Symbol.for("opencode.plugin.tui")]
+          if (!exports) throw new Error("OpenCode TUI plugin SDK is unavailable")
+          return { exports, loader: "object" }
+        })
+    },
+  })
+}
 __cjs_mod__.registerHooks({
   resolve(__ocSpecifier, __ocContext, __ocNextResolve) {
     const __ocUrl = __ocPluginModules[__ocSpecifier]
@@ -197,7 +223,7 @@ __cjs_mod__.registerHooks({
   },
 })
 const __ocUid = typeof process.getuid === "function" ? process.getuid() : undefined
-const __ocCacheRoot = __ocPath.join(__ocTmpdir(), \`opencode-node-\${__ocUid ?? "user"}\`)
+const __ocCacheRoot = __ocPath.join(__ocTmpdir(), \`opencode-patcher-\${__ocUid ?? "user"}\`)
 if (__ocIsSea()) {
   try {
     __ocMkdir(__ocCacheRoot, { mode: 0o700 })
@@ -276,7 +302,8 @@ export function mainConfig(input: NodeBuildInput): UserConfig {
     esbuild: { jsx: "automatic" },
     define: {
       OPENCODE_VERSION: JSON.stringify(input.version),
-      OPENCODE_CLI_NAME: JSON.stringify("opencode2-node"),
+      OPENCODE_CLI_NAME: JSON.stringify("opencode-patcher"),
+      OPENCODE_PACKAGE_NAME: JSON.stringify("@me0wo/opencode"),
       OPENCODE_CHANNEL: JSON.stringify(input.channel),
       OPENCODE_ARTIFACT: JSON.stringify("cli-node"),
       ...(input.highlights ? { OPENCODE_RELEASE_HIGHLIGHTS: JSON.stringify(input.highlights) } : {}),

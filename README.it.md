@@ -14,6 +14,11 @@
   <a href="https://github.com/anomalyco/opencode/actions/workflows/release.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/release.yml?style=flat-square&branch=dev" /></a>
 </p>
 
+> [!IMPORTANT]
+> **Fork mantenuto da [𝑴𝒆𝟎𝒘𝒐](https://github.com/Sn0wo2)**: segue il `dev` upstream e pubblica bundle JavaScript precompilati su npm come [`@me0wo/opencode`](https://www.npmjs.com/package/@me0wo/opencode) (`opencode-patcher`) a ogni avanzamento dell'upstream; npm è l'unico canale di distribuzione.
+>
+> Oltre all'upstream: prompt e modelli **BTW / Goal** configurabili (`btw.prompt` / `btw.model` / `goal.prompt` / `goal.model`), prompt del **riepilogo di compaction** personalizzabile (`agents.compaction.system`), accettazione automatica che copre le sessioni dei subagenti, caricamento di plugin TypeScript su Node (sucrase) e correzioni del runtime Bun.
+
 <p align="center">
   <a href="README.md">English</a> |
   <a href="README.zh.md">简体中文</a> |

@@ -3,7 +3,7 @@ export * as PluginModule from "./module.js"
 import type { Plugin } from "@opencode/plugin/effect/plugin"
 import { Host } from "@opencode/plugin/host"
 import { GuiBundle, type Source } from "@opencode/schema/plugin"
-import { createPluginSources } from "@opencode/plugin/source"
+import { acceptStaticSource, createPluginSources, readStaticSource } from "@opencode/plugin/source"
 import { Hash } from "@opencode/util/hash"
 import { Npm } from "@opencode/util/npm"
 import { Deferred, Effect, FiberSet, PubSub, Schema, Stream } from "effect"
@@ -171,7 +171,7 @@ const loadServer = Effect.fn("PluginModule.loadServer")(function* (
   revision: string | undefined,
 ) {
   const loaded = yield* Effect.promise(() =>
-    sources ? sources.read(entrypoint) : Host.load(entrypoint).then((module) => ({ module, version: revision })),
+    sources ? sources.read(entrypoint) : readStaticSource(entrypoint, revision),
   )
   const value = (yield* Schema.decodeUnknownEffect(Module)(loaded.module).pipe(
     Effect.mapError(
@@ -182,5 +182,6 @@ const loadServer = Effect.fn("PluginModule.loadServer")(function* (
         }),
     ),
   )).default
+  if (!sources) acceptStaticSource(entrypoint, revision)
   return { plugin: "effect" in value ? value : PluginPromise.fromPromise(value), version: loaded.version }
 })

@@ -45,6 +45,40 @@ export function createPluginSources(watch: (file: string) => Promise<void>) {
   }
 }
 
+const staticSources = new Map<
+  string,
+  { loaded: Promise<{ module: unknown; version: string | undefined }>; dispose: () => void }
+>()
+
+export function readStaticSource(entrypoint: string, version?: string) {
+  const key = `${entrypoint}\0${version ?? ""}`
+  const cached = staticSources.get(key)
+  if (cached) return cached.loaded
+
+  let prepared: { version: string; load: () => Promise<unknown>; dispose?: () => void } | undefined
+  const loaded = (async () => {
+    const { prepareSource } = await import("#plugin-source")
+    prepared = await prepareSource(entrypoint, () => {})
+    return { module: await prepared.load(), version }
+  })()
+  const entry = { loaded, dispose: () => prepared?.dispose?.() }
+  void loaded.catch(() => {
+    staticSources.delete(key)
+    entry.dispose()
+  })
+  staticSources.set(key, entry)
+  return loaded
+}
+
+export function acceptStaticSource(entrypoint: string, version?: string) {
+  const key = `${entrypoint}\0${version ?? ""}`
+  for (const [k, item] of staticSources) {
+    if (k === key || !k.startsWith(`${entrypoint}\0`)) continue
+    staticSources.delete(k)
+    item.dispose()
+  }
+}
+
 type Source = {
   loaded: Promise<{ version: string; module: unknown }>
   files: Map<string, { digest: string; directory: boolean }>

@@ -14,6 +14,11 @@
   <a href="https://github.com/anomalyco/opencode/actions/workflows/release.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/release.yml?style=flat-square&branch=dev" /></a>
 </p>
 
+> [!IMPORTANT]
+> **Fork من [𝑴𝒆𝟎𝒘𝒐](https://github.com/Sn0wo2)**: يتبع فرع upstream `dev` وينشر حزم JavaScript المجمّعة مسبقا على npm بصيغة [`@me0wo/opencode`](https://www.npmjs.com/package/@me0wo/opencode) (`opencode-patcher`) مع كل تقدم upstream؛ npm هو قناة التوزيع الوحيدة.
+>
+> إضافات فوق upstream: مطالبات ونماذج **BTW / Goal** قابلة للإعداد (`btw.prompt` / `btw.model` / `goal.prompt` / `goal.model`)، وطلب **ملخص الضغط** قابل للتخصيص (`agents.compaction.system`)، وقبول تلقائي يشمل جلسات الوكلاء الفرعية، وتحميل إضافات TypeScript على Node (sucrase)، وإصلاحات runtime لـ Bun.
+
 <p align="center">
   <a href="README.md">English</a> |
   <a href="README.zh.md">简体中文</a> |

@@ -14,6 +14,11 @@
   <a href="https://github.com/anomalyco/opencode/actions/workflows/release.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/release.yml?style=flat-square&branch=dev" /></a>
 </p>
 
+> [!IMPORTANT]
+> **[𝑴𝒆𝟎𝒘𝒐](https://github.com/Sn0wo2) によるフォーク**: upstream の `dev` を追跡し、upstream が進むたびにプリビルド済み JavaScript バンドルを npm([`@me0wo/opencode`](https://www.npmjs.com/package/@me0wo/opencode)、コマンド `opencode-patcher`)として公開します。npm が唯一の配布チャネルです。
+>
+> upstream からの追加:設定可能な **BTW / Goal** のプロンプトとモデル(`btw.prompt` / `btw.model` / `goal.prompt` / `goal.model`)、カスタマイズ可能な **compaction 要約**プロンプト(`agents.compaction.system`)、サブセッションを含む自動承認、Node での TypeScript プラグイン読み込み(sucrase)、Bun ランタイムの修正。
+
 <p align="center">
   <a href="README.md">English</a> |
   <a href="README.zh.md">简体中文</a> |

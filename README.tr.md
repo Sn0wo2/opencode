@@ -14,6 +14,11 @@
   <a href="https://github.com/anomalyco/opencode/actions/workflows/release.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/release.yml?style=flat-square&branch=dev" /></a>
 </p>
 
+> [!IMPORTANT]
+> **[𝑴𝒆𝟎𝒘𝒐](https://github.com/Sn0wo2) tarafından sürdürülen fork**: upstream `dev` dalını takip eder ve upstream her ilerlediğinde önceden derlenmiş JavaScript paketlerini npm'de [`@me0wo/opencode`](https://www.npmjs.com/package/@me0wo/opencode) (`opencode-patcher`) olarak yayınlar; npm tek dağıtım kanalıdır.
+>
+> upstream üzerine ek olarak: yapılandırılabilir **BTW / Goal** istemleri ve modelleri (`btw.prompt` / `btw.model` / `goal.prompt` / `goal.model`), özelleştirilebilir **compaction özeti** istemi (`agents.compaction.system`), alt oturumları kapsayan otomatik onay, Node üzerinde TypeScript eklenti yükleme (sucrase) ve Bun çalışma zamanı düzeltmeleri.
+
 <p align="center">
   <a href="README.md">English</a> |
   <a href="README.zh.md">简体中文</a> |

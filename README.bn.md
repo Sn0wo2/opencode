@@ -14,6 +14,11 @@
   <a href="https://github.com/anomalyco/opencode/actions/workflows/release.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/release.yml?style=flat-square&branch=dev" /></a>
 </p>
 
+> [!IMPORTANT]
+> **[𝑴𝒆𝟎𝒘𝒐](https://github.com/Sn0wo2) দ্বারা রক্ষণাবেক্ষিত fork**: upstream `dev` অনুসরণ করে এবং upstream এগিয়ে গেলে প্রি-বিল্ট JavaScript বান্ডল npm-এ [`@me0wo/opencode`](https://www.npmjs.com/package/@me0wo/opencode) (`opencode-patcher`) হিসেবে প্রকাশ করে; npm-ই একমাত্র বিতরণ চ্যানেল।
+>
+> upstream-এর বাইরে: কনফিগারযোগ্য **BTW / Goal** প্রম্পট ও মডেল (`btw.prompt` / `btw.model` / `goal.prompt` / `goal.model`), কাস্টমাইজযোগ্য **compaction সারসংক্ষেপ** প্রম্পট (`agents.compaction.system`), সাব-এজেন্ট সেশন অন্তর্ভুক্ত অটো-অ্যাকসেপ্ট, Node-এ TypeScript প্লাগইন লোডিং (sucrase) এবং Bun রানটাইম সংশোধন।
+
 <p align="center">
   <a href="README.md">English</a> |
   <a href="README.zh.md">简体中文</a> |

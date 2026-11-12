@@ -88,6 +88,19 @@ export class Info extends Schema.Class<Info>("Config.Info")({
   compaction: ConfigCompaction.Info.pipe(optional).annotate({
     description: "Conversation compaction behavior",
   }),
+  goal: Schema.Struct({
+    model: ConfigModel.Selection.pipe(optional),
+    prompt: Schema.String.pipe(optional).annotate({
+      description: "Replaces the reviewer prompt. Supports ${objective}, ${background} and ${wait}; output must be a JSON verdict.",
+    }),
+  }).pipe(optional).annotate({ description: "The /goal loop's reviewer behavior" }),
+  btw: Schema.Struct({
+    model: ConfigModel.Selection.pipe(optional),
+    prompt: Schema.String.pipe(optional).annotate({
+      description:
+        "Replaces the side-question instructions. Supports ${question}; otherwise the question is appended. Generation runs no tool loop, so instruct the model not to call tools.",
+    }),
+  }).pipe(optional).annotate({ description: "Side-question (/btw) behavior" }),
   skills: Schema.String.pipe(Schema.Array, optional).annotate({
     description: "Additional paths or URLs to discover skills from",
   }),

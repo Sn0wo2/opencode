@@ -14,6 +14,11 @@
   <a href="https://github.com/anomalyco/opencode/actions/workflows/release.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/release.yml?style=flat-square&branch=dev" /></a>
 </p>
 
+> [!IMPORTANT]
+> **由 [𝑴𝒆𝟎𝒘𝒐](https://github.com/Sn0wo2) 维护的 fork**: 跟随上游 `dev`,并在上游更新时将预构建的 JavaScript 产物发布到 npm:[`@me0wo/opencode`](https://www.npmjs.com/package/@me0wo/opencode)(命令 `opencode-patcher`);npm 是唯一的分发渠道。
+>
+> 相比上游新增:可配置的 **BTW / Goal** 提示词与模型(`btw.prompt` / `btw.model` / `goal.prompt` / `goal.model`)、自定义 **compaction 摘要**提示词(`agents.compaction.system`)、覆盖子会话的自动接受、Node 上的 TypeScript 插件加载(sucrase)以及 Bun 运行时修复。
+
 <p align="center">
   <a href="README.md">English</a> |
   <a href="README.zh.md">简体中文</a> |

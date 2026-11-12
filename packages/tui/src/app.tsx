@@ -61,7 +61,7 @@ import { DataProvider, useData } from "./context/data"
 import { SessionTabsProvider, useSessionTabs } from "./context/session-tabs"
 import { LocationProvider, useLocation } from "./context/location"
 import { LocalProvider, useLocal } from "./context/local"
-import { PermissionProvider } from "./context/permission"
+import { PermissionAutoAccept, PermissionProvider } from "./context/permission"
 import { DialogModel } from "./component/dialog-model"
 import { useConnected } from "./component/use-connected"
 import { DialogMcp } from "./component/dialog-mcp"
@@ -412,6 +412,7 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
                                                 <DataProvider directory={directory}>
                                                   <LocationProvider>
                                                     <SessionTabsProvider>
+                                                      <PermissionAutoAccept />
                                                       <SessionTerminalsProvider>
                                                         <ThemeProvider
                                                           mode={mode}

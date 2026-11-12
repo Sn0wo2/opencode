@@ -324,7 +324,7 @@ export const layer = Layer.effect(
       // opens here, before any wait, so a background summary still being written shows as a running compaction.
       if (trigger.reason !== "manual")
         yield* bus.publish(SessionEvent.Compaction.Started, { sessionID: context.session.id, reason: "auto" })
-      const swapped = held ? yield* usePrecomputed(selected, held, budget, settings) : undefined
+      const swapped = held ? yield* usePrecomputed(trigger, held, budget, settings) : undefined
       const compaction = swapped
         ? Effect.succeed(swapped)
         : native
@@ -482,9 +482,11 @@ export const layer = Layer.effect(
       const keepID = background ? undefined : split.keepID
 
       const previous = previousCompaction(messages)
-      const prompt = buildPrompt(previous !== undefined, previous?.summary.includes(LEGACY_HEADING) ?? false)
+      const custom = (yield* agents.get(Agent.ID.make("compaction")))?.system
+      const prompt = custom ?? buildPrompt(previous !== undefined, previous?.summary.includes(LEGACY_HEADING) ?? false)
       const headings = SUMMARY_TEMPLATE.split("\n").filter((line) => line.startsWith("##"))
-      const filled = (text: string) => text.split("\n").some((line) => headings.includes(line.trim()))
+      const filled = (text: string) =>
+        custom === undefined ? text.split("\n").some((line) => headings.includes(line.trim())) : text.trim() !== ""
       const prepared = yield* prepare(context, messages, budget)
       // Size the unchanged request with the number that decided to compact: the last response's count plus an
       // estimate of what came after it. Characters overstate a conversation whose old reasoning the provider drops.
@@ -503,6 +505,10 @@ export const layer = Layer.effect(
           )
           const reply = yield* stream(context, prompted, prepared.options, background)
           if (filled(reply.text)) return reply
+          if (custom !== undefined)
+            return yield* Effect.fail<Failure>({
+              error: { type: "compaction.failed", message: "Compaction produced no summary" },
+            })
 
           const nudged = fitOutput(
             { ...prompted, messages: [...prompted.messages, Message.user(NUDGE)] },
@@ -521,7 +527,7 @@ export const layer = Layer.effect(
           })
         })
 
-      const overhead = Token.estimate(prompt) + Token.estimate(NUDGE)
+      const overhead = Token.estimate(prompt) + (custom === undefined ? Token.estimate(NUDGE) : 0)
       // Automatic compaction starts past the ceiling, so the whole conversation is sent unchanged while the window can
       // still fit the summary. Below that, the history before the tail is sent instead, as before: unchanged when it fits,
       // which still reuses the cache for that shorter prefix, and as text otherwise. Dropping exchanges to make room

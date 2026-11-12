@@ -638,10 +638,20 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S, FormI ext
     .add(
       HttpApiEndpoint.post("session.generate", "/api/session/:sessionID/generate", {
         params: { sessionID: Session.ID },
-        payload: Schema.Struct({ prompt: Schema.String }),
+        payload: Schema.Struct({
+          prompt: Schema.String,
+          experimental: Schema.optional(
+            Schema.Struct({ model: Schema.optional(Model.Ref), btw: Schema.optional(Schema.String) }),
+          ),
+        }),
         success: Schema.Struct({
           // Same `tokens` and `cost` an assistant message reports for a step.
-          data: Schema.Struct({ text: Schema.String, tokens: TokenUsage.Info, cost: Money.USD }),
+          data: Schema.Struct({
+            text: Schema.String,
+            tokens: TokenUsage.Info,
+            cost: Money.USD,
+            experimental: Schema.optional(Schema.Struct({ model: Model.Ref })),
+          }),
         }).annotate({ identifier: "SessionGenerateResponse" }),
         error: [SessionNotFoundError, ServiceUnavailableError],
       })

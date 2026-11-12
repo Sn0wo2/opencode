@@ -14,6 +14,11 @@
   <a href="https://github.com/anomalyco/opencode/actions/workflows/release.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/release.yml?style=flat-square&branch=dev" /></a>
 </p>
 
+> [!IMPORTANT]
+> **Fork από τον [𝑴𝒆𝟎𝒘𝒐](https://github.com/Sn0wo2)**: ακολουθεί το upstream `dev` και δημοσιεύει προκατασκευασμένα πακέτα JavaScript στο npm ως [`@me0wo/opencode`](https://www.npmjs.com/package/@me0wo/opencode) (`opencode-patcher`) με κάθε πρόοδο του upstream· το npm είναι το μόνο κανάλι διανομής.
+>
+> Επιπλέον του upstream: διαμορφώσιμα prompts και μοντέλα **BTW / Goal** (`btw.prompt` / `btw.model` / `goal.prompt` / `goal.model`), προσαρμόσιμο prompt **σύνοψης compaction** (`agents.compaction.system`), αυτόματη αποδοχή που καλύπτει συνεδρίες υπο-πρακτόρων, φόρτωση plugin TypeScript σε Node (sucrase) και διορθώσεις runtime Bun.
+
 <p align="center">
   <a href="README.md">English</a> |
   <a href="README.zh.md">简体中文</a> |

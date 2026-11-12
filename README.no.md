@@ -14,6 +14,11 @@
   <a href="https://github.com/anomalyco/opencode/actions/workflows/release.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/release.yml?style=flat-square&branch=dev" /></a>
 </p>
 
+> [!IMPORTANT]
+> **Fork vedlikeholdt av [𝑴𝒆𝟎𝒘𝒐](https://github.com/Sn0wo2)**: følger upstream `dev` og publiserer forhåndbygde JavaScript-bunter på npm som [`@me0wo/opencode`](https://www.npmjs.com/package/@me0wo/opencode) (`opencode-patcher`) hver gang upstream flytter seg; npm er den eneste distribusjonskanalen.
+>
+> I tillegg til upstream: konfigurerbare **BTW / Goal**-prompter og -modeller (`btw.prompt` / `btw.model` / `goal.prompt` / `goal.model`), tilpassbar **compaction-oppsummerings**-prompt (`agents.compaction.system`), auto-godkjenning som dekker underøkter, lasting av TypeScript-plugins på Node (sucrase) og Bun-runtimefikser.
+
 <p align="center">
   <a href="README.md">English</a> |
   <a href="README.zh.md">简体中文</a> |

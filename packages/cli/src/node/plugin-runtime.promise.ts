@@ -10,6 +10,7 @@ import {
   Reference,
   Skill,
 } from "@opencode/plugin"
+import { Tool } from "@opencode/schema/tool"
 
 const key = Symbol.for("opencode.plugin.v2.promise")
 ;(globalThis as typeof globalThis & { [key]?: unknown })[key] = {
@@ -23,4 +24,5 @@ const key = Symbol.for("opencode.plugin.v2.promise")
   Provider,
   Reference,
   Skill,
+  Tool: { CallID: Tool.CallID, Error: Tool.Error },
 }

@@ -456,8 +456,6 @@ export type SessionMessageCompactionRunning = {
 
 export type UsageLimitsBudgetModel = { providerID: ProviderID; modelID: string; name: string; spent?: MoneyUSD }
 
-export type SessionGenerateResponse = { data: { text: string; tokens: TokenUsageInfo; cost: MoneyUSD } }
-
 export type FileSystemEntry = { path: RelativePath; type: "file" | "directory" }
 
 export type SessionRevert = {
@@ -1055,6 +1053,10 @@ export type SessionMessageCompactionCompleted = {
   summary: string
   cost?: MoneyUSD
   tokens?: TokenUsageInfo
+}
+
+export type SessionGenerateResponse = {
+  data: { text: string; tokens: TokenUsageInfo; cost: MoneyUSD; experimental?: { model: ModelRef } | null }
 }
 
 export type SessionStatsModelUsage = { model: ModelRef; steps: number; tokens: TokenUsageInfo; cost: MoneyUSD }
@@ -2514,6 +2516,8 @@ export type ConfigEntry =
           }
         }
         compaction?: { auto?: boolean; keep?: { tokens?: number }; buffer?: ConfigCompactionPercent | number }
+        goal?: { model?: string | { providerID: string; model: string; variant?: string }; prompt?: string }
+        btw?: { model?: string | { providerID: string; model: string; variant?: string }; prompt?: string }
         skills?: Array<string>
         commands?: {
           [x: string]: {
@@ -3566,7 +3570,17 @@ export type SessionInboxUpdateInput = {
 
 export type SessionInboxUpdateOutput = void
 
-export type SessionGenerateInput = { readonly sessionID: string; readonly prompt: string }
+export type SessionGenerateInput = {
+  readonly sessionID: string
+  readonly prompt: string
+  readonly experimental?:
+    | {
+        readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
+        readonly btw?: string | null
+      }
+    | null
+    | undefined
+}
 
 export type SessionGenerateOutput = SessionGenerateResponse["data"]
 

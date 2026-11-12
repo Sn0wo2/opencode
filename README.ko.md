@@ -14,6 +14,11 @@
   <a href="https://github.com/anomalyco/opencode/actions/workflows/release.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/release.yml?style=flat-square&branch=dev" /></a>
 </p>
 
+> [!IMPORTANT]
+> **[𝑴𝒆𝟎𝒘𝒐](https://github.com/Sn0wo2) 가 유지하는 fork**: upstream `dev`를 따라가며, upstream이 움직일 때마다 사전 빌드된 JavaScript 번들을 npm([`@me0wo/opencode`](https://www.npmjs.com/package/@me0wo/opencode), 명령어 `opencode-patcher`)으로 게시합니다. npm이 유일한 배포 채널입니다.
+>
+> upstream 대비 추가: 설정 가능한 **BTW / Goal** 프롬프트와 모델(`btw.prompt` / `btw.model` / `goal.prompt` / `goal.model`), 사용자 지정 **compaction 요약** 프롬프트(`agents.compaction.system`), 하위 세션까지 포괄하는 자동 수락, Node에서의 TypeScript 플러그인 로딩(sucrase), Bun 런타임 수정.
+
 <p align="center">
   <a href="README.md">English</a> |
   <a href="README.zh.md">简体中文</a> |

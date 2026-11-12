@@ -3,10 +3,12 @@ export * as GoalPlugin from "./goal.js"
 import { isContextOverflowFailure, Message } from "@opencode/ai/effect"
 import { define } from "@opencode/plugin/effect/plugin"
 import type { SessionIdleBackground } from "@opencode/plugin/effect/session"
+import { ConfigModel } from "@opencode/schema/config/model"
 import { Goal } from "@opencode/schema/goal"
 import { Session } from "@opencode/schema/session"
 import { isExactRootFallback } from "@opencode/util/session-title-fallback"
 import { Cause, Clock, DateTime, Duration, Effect, FiberMap, Option, Schema, Stream } from "effect"
+import { Config } from "../config.js"
 import CONTINUATION from "./goal/continuation.txt"
 import JUDGE from "./goal/judge.txt"
 import KICKOFF from "./goal/kickoff.txt"
@@ -40,6 +42,7 @@ const USAGE = "Usage: /goal <objective> | pause | resume | clear"
 export const Plugin = define({
   id: "opencode.goal",
   effect: Effect.fn(function* (ctx) {
+    const config = Option.getOrUndefined(yield* Effect.serviceOption(Config.Service))
     const read = Effect.fn("GoalPlugin.read")(function* (sessionID: string) {
       return Option.getOrUndefined(decodeState(yield* ctx.storage.get(PREFIX + sessionID)))
     })
@@ -106,7 +109,8 @@ export const Plugin = define({
       goal: State,
       shells: ReadonlyArray<string>,
     ) {
-      const prompt = render(JUDGE, {
+      const settings = config ? Config.latest(yield* config.entries(), "goal") : undefined
+      const prompt = render(settings?.prompt ?? JUDGE, {
         objective: escape(goal.objective),
         background:
           shells.length === 0
@@ -120,7 +124,13 @@ export const Plugin = define({
         wait:
           shells.length === 0 ? "" : '{"verdict":"wait","reason":"<the running shell whose result the goal needs>"}\n',
       })
-      const attempt = ctx.session.generate({ sessionID, prompt }).pipe(
+      const attempt = ctx.session
+        .generate({
+          sessionID,
+          prompt,
+          experimental: settings?.model ? { model: ConfigModel.ref(settings.model) } : undefined,
+        })
+        .pipe(
         Effect.map((result) => {
           const verdict = parseVerdict(result.text)
           // "wait" is only offered while a shell runs; without one, nothing would wake the Session to judge again.

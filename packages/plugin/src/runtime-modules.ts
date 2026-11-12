@@ -8,8 +8,8 @@ const runtimePackages = ["effect", "@opencode/plugin"] as const
 
 export function resolveHostPackageRoots(from = import.meta.dir, packages: readonly string[] = runtimePackages) {
   return packages.flatMap((pkgName) => {
-    const dir = path.dirname(Bun.resolveSync(`${pkgName}/package.json`, from))
-    return [dir, findNodeModulesDir(pkgName, from, dir)]
+    const dir = resolvePackageDir(pkgName, from)
+    return dir ? [dir, findNodeModulesDir(pkgName, from, dir)] : []
   })
 }
 
@@ -28,7 +28,8 @@ export function discoverPluginRuntimeSpecifiers(
 ): ReadonlyMap<string, string> {
   const entries = new Map<string, string>()
   for (const pkgName of packages) {
-    const realDir = path.dirname(Bun.resolveSync(`${pkgName}/package.json`, from))
+    const realDir = resolvePackageDir(pkgName, from)
+    if (!realDir) continue
     // Resolve workspace @opencode/plugin paths via node_modules so OpenTUI does not wrap host files in async rewrite loaders.
     const loadDir = findNodeModulesDir(pkgName, from, realDir)
     const toLoadPath = (resolved: string) =>
@@ -46,7 +47,8 @@ export function discoverPluginRuntimeSpecifiers(
         normalized.includes("/internal/") ||
         normalized.startsWith("source.") ||
         normalized.startsWith("runtime") ||
-        normalized.startsWith("gui/")
+        normalized.startsWith("gui/") ||
+        normalized.startsWith("tui/")
       ) {
         continue
       }
@@ -102,6 +104,15 @@ export function createLoader(resolved: string): RuntimeModuleLoader {
         },
       ))
     }
+  }
+}
+
+function resolvePackageDir(pkgName: string, from: string) {
+  try {
+    return path.dirname(Bun.resolveSync(`${pkgName}/package.json`, from))
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ERR_MODULE_NOT_FOUND") return undefined
+    throw error
   }
 }
 

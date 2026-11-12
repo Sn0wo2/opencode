@@ -14,6 +14,11 @@
   <a href="https://github.com/anomalyco/opencode/actions/workflows/release.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/release.yml?style=flat-square&branch=dev" /></a>
 </p>
 
+> [!IMPORTANT]
+> **Fork koji održava [𝑴𝒆𝟎𝒘𝒐](https://github.com/Sn0wo2)**: prati upstream `dev` i objavljuje prethodno izgrađene JavaScript pakete na npm kao [`@me0wo/opencode`](https://www.npmjs.com/package/@me0wo/opencode) (`opencode-patcher`) svaki put kada upstream napreduje; npm je jedini kanal distribucije.
+>
+> Iznad upstreama: konfigurabilni **BTW / Goal** promptovi i modeli (`btw.prompt` / `btw.model` / `goal.prompt` / `goal.model`), prilagodljivi prompt **kompakcijskog sažetka** (`agents.compaction.system`), automatsko prihvatanje koje pokriva sesije pod-agenata, učitavanje TypeScript pluginova na Node-u (sucrase) i ispravke Bun runtime-a.
+
 <p align="center">
   <a href="README.md">English</a> |
   <a href="README.zh.md">简体中文</a> |

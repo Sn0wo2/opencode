@@ -35,3 +35,5 @@ function parse(input: string): Selection {
     ...(ref.variant ? { variant: ref.variant } : {}),
   }
 }
+
+export const ref = ({ model, ...selection }: Selection) => Model.Ref.make({ ...selection, id: model })
