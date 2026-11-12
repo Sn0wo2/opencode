@@ -14,6 +14,11 @@
   <a href="https://github.com/anomalyco/opencode/actions/workflows/release.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/release.yml?style=flat-square&branch=dev" /></a>
 </p>
 
+> [!IMPORTANT]
+> **Fork do [𝑴𝒆𝟎𝒘𝒐](https://github.com/Sn0wo2) duy trì**: theo dõi upstream `dev` và xuất các bundle JavaScript đã dựng sẵn lên npm dưới tên [`@me0wo/opencode`](https://www.npmjs.com/package/@me0wo/opencode) (`opencode-patcher`) mỗi khi upstream tiến lên; npm là kênh phân phối duy nhất.
+>
+> Vượt upstream: prompt và mô hình **BTW / Goal** cấu hình được (`btw.prompt` / `btw.model` / `goal.prompt` / `goal.model`), prompt **tóm tắt compaction** tùy chỉnh được (`agents.compaction.system`), tự động chấp nhận bao gồm cả phiên subagent, nạp plugin TypeScript trên Node (sucrase), và các bản sửa lỗi runtime Bun.
+
 <p align="center">
   <a href="README.md">English</a> |
   <a href="README.zh.md">简体中文</a> |

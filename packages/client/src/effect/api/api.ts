@@ -321,7 +321,11 @@ export type SessionInboxUpdateOperation<E = never> = (
   input: SessionInboxUpdateInput,
 ) => Effect.Effect<SessionInboxUpdateOutput, E>
 
-export type SessionGenerateInput = { readonly sessionID: Session.ID; readonly prompt: string }
+export type SessionGenerateInput = {
+  readonly sessionID: Session.ID
+  readonly prompt: string
+  readonly experimental?: { readonly model?: Model.Ref | undefined; readonly btw?: string | undefined } | undefined
+}
 export type SessionGenerateOutput = {
   readonly text: string
   readonly tokens: {
@@ -331,6 +335,7 @@ export type SessionGenerateOutput = {
     readonly cache: { readonly read: number; readonly write: number }
   }
   readonly cost: Money.USD
+  readonly experimental?: { readonly model: Model.Ref } | undefined
 }
 export type SessionGenerateOperation<E = never> = (
   input: SessionGenerateInput,

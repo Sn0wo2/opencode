@@ -82,6 +82,7 @@ export type BtwEvent =
       readonly attempt: number
       readonly text: string
       readonly now: number
+      readonly model?: BtwChatModel
     }
   | {
       readonly type: "generate.failed"
@@ -179,9 +180,11 @@ export function transitionBtw(state: BtwState, event: BtwEvent): BtwTransition {
 
   const duration = Math.max(0, event.now - chat.started)
 
-  return next(put(state, event.sessionKey, event.id, { ...info, status: "answered", answer, duration }), [
+  const model = event.model ?? chat.model
+
+  return next(put(state, event.sessionKey, event.id, { ...info, model, status: "answered", answer, duration }), [
     abort,
-    { type: "persist-answer", id: event.id, answer, duration, agent: chat.agent, model: chat.model },
+    { type: "persist-answer", id: event.id, answer, duration, agent: chat.agent, model },
   ])
 }
 

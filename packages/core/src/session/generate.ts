@@ -2,7 +2,9 @@ export * as SessionGenerate from "./generate.js"
 
 import type { FileSystem } from "../filesystem.js"
 import { LLMClient, Message, type AIError } from "@opencode/ai/effect"
-import { Effect } from "effect"
+import { ConfigModel } from "@opencode/schema/config/model"
+import type { Model } from "@opencode/schema/model"
+import { Effect, Option } from "effect"
 import { Bus } from "../bus.js"
 import { Database } from "../database/database.js"
 import { Instance } from "../instance/service.js"
@@ -17,6 +19,7 @@ import { ModelRetry } from "../model-retry.js"
 import type { SessionRunnerModel } from "./runner/model.js"
 import type { SessionSchema } from "./schema.js"
 import { SessionUsage } from "./usage.js"
+import { Config } from "../config.js"
 
 export type Error =
   | AgentNotFoundError
@@ -25,7 +28,7 @@ export type Error =
   | AIError
   | FileSystem.DirectoryNotFoundError
 
-export type Result = SessionUsage.Recorded & { readonly text: string }
+export type Result = SessionUsage.Recorded & { readonly text: string; readonly experimental?: { readonly model: Model.Ref } }
 
 /**
  * Generates text from current Session context without mutating history.
@@ -34,6 +37,7 @@ export type Result = SessionUsage.Recorded & { readonly text: string }
 export const generate = Effect.fn("SessionGenerate.generate")(function* (input: {
   session: SessionSchema.Info
   prompt: string
+  experimental?: { model?: Model.Ref; btw?: string }
 }) {
   const instances = yield* Instance.Service
   const database = yield* Database.Service
@@ -44,7 +48,14 @@ export const generate = Effect.fn("SessionGenerate.generate")(function* (input: 
     yield* Plugin.awaitActivation
     const context = yield* SessionContext.Service
     const selection = yield* context.select(input.session.id)
-    const model = yield* context.resolveModel(selection.session, { kind: "generate", agent: selection.agent.id })
+    const btw = input.experimental?.btw
+    const config = btw === undefined ? undefined : Option.getOrUndefined(yield* Effect.serviceOption(Config.Service))
+    const settings = config ? Config.latest(yield* config.entries(), "btw") : undefined
+    const ref = input.experimental?.model ?? (settings?.model ? ConfigModel.ref(settings.model) : undefined)
+    const model = yield* context.resolveModel(ref ? { ...selection.session, model: ref } : selection.session, {
+      kind: "generate",
+      agent: selection.agent.id,
+    })
     const history = yield* SessionHistory.preview(database.db, selection.session.id, selection.instructions, model.ref)
     const transcript = SessionModelRequest.baseTranscript({
       agent: selection.agent.info,
@@ -62,7 +73,13 @@ export const generate = Effect.fn("SessionGenerate.generate")(function* (input: 
       messages: [
         ...transcript.messages,
         ...(history.instructionUpdate ? [Message.system(history.instructionUpdate)] : []),
-        Message.user(input.prompt),
+        Message.user(
+          btw === undefined || settings?.prompt === undefined
+            ? input.prompt
+            : settings.prompt.includes("${question}")
+              ? settings.prompt.replaceAll("${question}", () => btw)
+              : [settings.prompt, btw].join("\n\n"),
+        ),
       ],
     })
     yield* Effect.logInfo("sending session generation request", {
@@ -73,6 +90,6 @@ export const generate = Effect.fn("SessionGenerate.generate")(function* (input: 
     const response = yield* llm.generate(prepared.request, prepared.options).pipe(ModelRetry.retry)
     const usage = SessionUsage.record(response.usage, model.cost)
     yield* bus.publish(SessionEvent.UsageRecorded, { sessionID: selection.session.id, source: "generate", ...usage })
-    return { text: response.text, ...usage }
+    return { text: response.text, ...usage, experimental: { model: model.ref } }
   }).pipe(instances.provide(input.session))
 })

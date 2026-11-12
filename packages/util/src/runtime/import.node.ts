@@ -4,6 +4,8 @@ import { statSync } from "node:fs"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
 
+const bun = typeof Bun === "undefined" ? undefined : Bun
+
 export async function importModule(specifier: string) {
   const imported = (await new Script(`import(${JSON.stringify(specifier)})`, {
     importModuleDynamically: constants.USE_MAIN_CONTEXT_DEFAULT_LOADER,
@@ -18,6 +20,12 @@ export async function importModule(specifier: string) {
 }
 
 export function resolveModule(specifier: string, directory: string) {
+  if (bun)
+    return complete(specifier, (target) => {
+      const resolved = path.isAbsolute(target) ? target : bun.resolveSync(target, directory)
+      statSync(resolved)
+      return pathToFileURL(resolved).href
+    })
   // Node only accepts import.meta.resolve's parent URL behind an experimental
   // flag. Scope this synchronous resolution to the caller's package directory
   // through the supported resolver hook instead.
@@ -27,28 +35,29 @@ export function resolveModule(specifier: string, directory: string) {
     },
   })
   try {
-    const resolve = (target: string) => {
+    return complete(specifier, (target) => {
       const resolved = import.meta.resolve(path.isAbsolute(target) ? pathToFileURL(target).href : target)
       if (resolved.startsWith("file:")) statSync(new URL(resolved))
       return resolved
-    }
-    try {
-      return resolve(specifier)
-    } catch (error) {
-      if (path.extname(specifier) || !missing(error)) throw error
-      // Node does not infer extensions for local files or legacy package
-      // subpaths. Resolve each candidate natively so package exports still apply.
-      for (const extension of [".ts", ".tsx", ".js", ".jsx", ".mts", ".mjs", ".cts", ".cjs"]) {
-        try {
-          return resolve(specifier + extension)
-        } catch (cause) {
-          if (!missing(cause)) throw cause
-        }
-      }
-      throw error
-    }
+    })
   } finally {
-    hook.deregister()
+    hook.deregister?.()
+  }
+}
+
+function complete(specifier: string, resolve: (target: string) => string) {
+  try {
+    return resolve(specifier)
+  } catch (error) {
+    if (path.extname(specifier) || !missing(error)) throw error
+    for (const extension of [".ts", ".tsx", ".js", ".jsx", ".mts", ".mjs", ".cts", ".cjs"]) {
+      try {
+        return resolve(specifier + extension)
+      } catch (cause) {
+        if (!missing(cause)) throw cause
+      }
+    }
+    throw error
   }
 }
 
