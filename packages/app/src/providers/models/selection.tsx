@@ -497,10 +497,12 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       const global = configuredModel()
 
       return (
+        item.variantOverride ??
         getConfiguredAgentVariant({
           agent: { model: item.model, variant: item.variant },
           model: { providerID: model.provider.id, modelID: model.id, variants: model.variants },
         }) ??
+        configuredModel.variant() ??
         getConfiguredAgentVariant({
           agent: { model: global, variant: global?.variant },
           model: { providerID: model.provider.id, modelID: model.id, variants: model.variants },

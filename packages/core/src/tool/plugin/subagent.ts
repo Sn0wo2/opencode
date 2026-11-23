@@ -3,6 +3,7 @@ export * as SubagentTool from "./subagent.js"
 import { ToolFailure } from "@opencode/ai/effect"
 import type { Context } from "@opencode/plugin/effect/plugin"
 import type { SessionHooks } from "@opencode/plugin/effect/session"
+import { ConfigModel } from "@opencode/schema/config/model"
 import { Effect, Predicate, Schema } from "effect"
 import { Agent } from "../../agent.js"
 import { Config } from "../../config.js"
@@ -10,6 +11,7 @@ import { Job } from "../../job.js"
 import { Model } from "../../model.js"
 import { Permission } from "../../permission.js"
 import { Session } from "../../session.js"
+import { SessionRunnerModel } from "../../session/runner/model.js"
 import { SessionSchema } from "../../session/schema.js"
 import { SubagentDepth } from "../../session/subagent-depth.js"
 import { SubagentJob } from "../../session/subagent-job.js"
@@ -37,6 +39,9 @@ export const Input = Schema.Struct({
   model: Schema.optionalKey(Schema.String).annotate({
     description:
       'NEVER set this unless the user explicitly asks for a particular model or variant. It must be a chat model; image and decision models can\'t run subagents. The value is written as "providerID/modelID", or "providerID/modelID#variant" to include a variant. Do not guess the ID: look the model up with the models tool, filtering to your own provider first.',
+  }),
+  variant: Schema.optionalKey(ConfigModel.VariantID).annotate({
+    description: "Override the variant of the selected or inherited chat model. Only set this when the user asks for a variant.",
   }),
   sessionID: Schema.optionalKey(SessionSchema.ID).annotate({
     description: "Send a follow-up to an existing subagent, running or finished. Omit to start a new one.",
@@ -67,7 +72,7 @@ export const Plugin = {
     const models = yield* Model.Service
     const subagents = yield* SubagentJob.Service
 
-    const resolveModel = (input: string) => resolveModelRef(models, input)
+    const resolveModel = (input: string, variant?: Model.VariantID) => resolveModelRef(models, input, variant)
 
     yield* ctx.tool
       .transform((editor) =>
@@ -123,12 +128,24 @@ export const Plugin = {
                 return yield* new ToolFailure({
                   message: `Session ${existing.id} is not a child of the current session`,
                 })
-              const override = input.model === undefined ? undefined : yield* resolveModel(input.model)
-              // Continuing with a different agent switches the child, mirroring create semantics
-              // where an explicit model wins over the agent's configured model, which wins over the inherited one.
+              const override = input.model === undefined ? undefined : yield* resolveModel(input.model, input.variant)
+              const switched = existing !== undefined && existing.agent !== agent.id
+              const inherited =
+                override ?? (existing === undefined ? (agent.model ?? parent.model) : switched ? agent.model : undefined)
+              const variant =
+                override === undefined
+                  ? (input.variant ??
+                    (existing === undefined || switched
+                      ? yield* SessionRunnerModel.inheritedAgentVariant(agent, config)
+                      : undefined))
+                  : undefined
               if (existing !== undefined) {
-                const switched = existing.agent !== agent.id
-                const model = override ?? (switched ? agent.model : undefined)
+                const model =
+                  variant === undefined
+                    ? inherited
+                    : yield* sessions
+                        .selectVariant({ ...existing, agent: agent.id, model: inherited ?? existing.model }, variant)
+                        .pipe(Effect.mapError((error) => new ToolFailure({ message: error.message, error })))
                 yield* Effect.all([
                   switched ? sessions.switchAgent({ sessionID: existing.id, agent: agent.id }) : Effect.void,
                   model === undefined ? Effect.void : sessions.switchModel({ sessionID: existing.id, model }),
@@ -139,7 +156,6 @@ export const Plugin = {
                 )
               }
 
-              const model = override ?? agent.model ?? parent.model
               const child =
                 existing ??
                 (yield* sessions
@@ -147,12 +163,11 @@ export const Plugin = {
                     parentID: context.sessionID,
                     title: input.description,
                     agent: agent.id,
-                    model,
+                    model: inherited,
+                    variant,
                   })
                   .pipe(
-                    Effect.mapError(
-                      (error) => new ToolFailure({ message: `Parent session not found: ${context.sessionID}`, error }),
-                    ),
+                    Effect.mapError((error) => new ToolFailure({ message: error.message, error })),
                   ))
 
               // A child that is not draining yet must be admitted without waking: the job's resume
@@ -200,9 +215,10 @@ export const Plugin = {
     yield* ctx.tool.hook("execute.before", (event) =>
       Effect.sync(() => {
         if (event.tool !== name || !Predicate.isObject(event.input)) return
-        if (event.input.model !== "" && event.input.sessionID !== "") return
+        if (event.input.model !== "" && event.input.variant !== "" && event.input.sessionID !== "") return
         const input = { ...event.input }
         if (input.model === "") delete input.model
+        if (input.variant === "") delete input.variant
         if (input.sessionID === "") delete input.sessionID
         event.input = input
       }),
@@ -239,18 +255,20 @@ export const Plugin = {
   }),
 }
 
-/** A model a caller named as "providerID/modelID" or "providerID/modelID#variant", checked to be an available chat model. */
+/** A model a caller named as "providerID/modelID" or "providerID/modelID#variant", checked to be an available chat model. An explicit `override` replaces the variant parsed from the string; "default" skips variant validation. */
 export const resolveModelRef = Effect.fn("SubagentTool.resolveModel")(function* (
   models: Model.Interface,
   input: string,
+  override?: Model.VariantID,
 ) {
-  const ref = yield* Effect.try({
+  const parsed = yield* Effect.try({
     try: () => Model.Ref.parse(input),
     catch: () =>
       new ToolFailure({
         message: `Invalid model "${input}". Use "providerID/modelID" or "providerID/modelID#variant".`,
       }),
   })
+  const ref = override === undefined ? parsed : { ...parsed, variant: override }
   const model = (yield* models.available()).find((model) => model.providerID === ref.providerID && model.id === ref.id)
   if (model === undefined) {
     const other = (yield* models.available(["image", "video", "decision"])).find(
@@ -262,7 +280,7 @@ export const resolveModelRef = Effect.fn("SubagentTool.resolveModel")(function* 
         : `Model "${ref.providerID}/${ref.id}" is not available. Use the models tool to see what is available.`,
     })
   }
-  if (ref.variant !== undefined && !model.variants.some((variant) => variant.id === ref.variant))
+  if (ref.variant !== undefined && override !== "default" && !model.variants.some((variant) => variant.id === ref.variant))
     return yield* new ToolFailure({
       message:
         model.variants.length === 0

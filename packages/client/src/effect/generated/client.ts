@@ -493,6 +493,7 @@ const EndpointSessionCreate = (raw: RawClient["server.session"]) => (input?: Ses
         title: input?.["title"],
         agent: input?.["agent"],
         model: input?.["model"],
+        experimental: input?.["experimental"],
         location: input?.["location"],
         metadata: input?.["metadata"],
         permissions: input?.["permissions"],
@@ -704,7 +705,10 @@ const EndpointSessionInboxUpdate = (raw: RawClient["server.session"]) => (input:
 
 const EndpointSessionGenerate = (raw: RawClient["server.session"]) => (input: SessionGenerateInput) =>
   preserveEffect<SessionGenerateOutput>()(
-    raw["session.generate"]({ params: { sessionID: input["sessionID"] }, payload: { prompt: input["prompt"] } }).pipe(
+    raw["session.generate"]({
+      params: { sessionID: input["sessionID"] },
+      payload: { prompt: input["prompt"], experimental: input["experimental"] },
+    }).pipe(
       Effect.mapError(mapClientError),
       Effect.map((value) => value.data),
     ),
@@ -966,7 +970,9 @@ const adaptGroupModel = (raw: RawClient["server.model"]) => ({
 const EndpointExperimentalGenerateText =
   (raw: RawClient["server.generate"]) => (input: ExperimentalGenerateTextInput) =>
     preserveEffect<ExperimentalGenerateTextOutput>()(
-      raw["generate.text"]({ payload: { prompt: input["prompt"], model: input["model"] } }).pipe(
+      raw["generate.text"]({
+        payload: { prompt: input["prompt"], model: input["model"], variant: input["variant"] },
+      }).pipe(
         Effect.mapError(mapClientError),
         Effect.map((value) => value.data),
       ),

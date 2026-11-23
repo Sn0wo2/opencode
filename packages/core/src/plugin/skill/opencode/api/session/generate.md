@@ -6,9 +6,11 @@ Generate transient text from the current session context without mutating sessio
 
 Body:
 - `prompt: string`
+- `experimental?: { model?: Model.Ref; variant?: string; btw?: string }`
 
 Returns: `SessionGenerateResponse`
 
 ## Types
 
-- `SessionGenerateResponse`: `{ data: { text, tokens, cost } }`
+- `Model.Ref`: `{ id: string; providerID: string; variant?: string }`
+- `SessionGenerateResponse`: `{ data: { text, tokens, cost, experimental } }`

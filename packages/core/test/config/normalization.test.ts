@@ -740,25 +740,33 @@ describe("ConfigNormalize", () => {
     expect(JSON.stringify(result.diagnostics)).not.toContain(secret)
   })
 
-  test("diagnoses unsupported legacy model selections without dropping their entries", () => {
+  test("preserves standalone legacy variants and diagnoses malformed model selections", () => {
     const result = normalized({
+      variant: "high",
       command: {
         invalidModel: { template: "one", model: "invalid" },
         invalidVariant: { template: "two", model: "anthropic/model", variant: "bad#variant" },
-        missingModel: { template: "three", variant: "high" },
+        variantOnly: { template: "three", variant: "high" },
       },
-      agent: { invalid: { prompt: "agent", model: "invalid", variant: "" } },
+      agent: {
+        invalid: { prompt: "agent", model: "invalid", variant: "" },
+        variantOnly: { prompt: "agent", variant: "low" },
+      },
     })
     expect(Object.keys(result.encoded.commands as Record<string, unknown>)).toEqual([
       "invalidModel",
       "invalidVariant",
-      "missingModel",
+      "variantOnly",
     ])
-    expect(Object.keys(result.encoded.agents as Record<string, unknown>)).toEqual(["invalid"])
+    expect(Object.keys(result.encoded.agents as Record<string, unknown>)).toEqual(["invalid", "variantOnly"])
+    expect(result.encoded).toMatchObject({
+      variant: "high",
+      commands: { variantOnly: { template: "three", variant: "high" } },
+      agents: { variantOnly: { system: "agent", variant: "low" } },
+    })
     expect(result.diagnostics.filter((item) => item.kind === "unsupported").map((item) => item.path)).toEqual([
       ["command", "invalidModel", "model"],
       ["command", "invalidVariant", "variant"],
-      ["command", "missingModel", "variant"],
       ["agent", "invalid", "model"],
       ["agent", "invalid", "variant"],
     ])

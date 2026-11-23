@@ -33,6 +33,9 @@ export class Info extends Schema.Class<Info>("Config.Info")({
   model: ConfigModel.Selection.pipe(optional).annotate({
     description: "Default model to use when no session or agent model is selected",
   }),
+  variant: ConfigModel.VariantID.pipe(optional).annotate({
+    description: "Default model variant, including when the model is inherited",
+  }),
   default_agent: Schema.String.pipe(optional).annotate({
     description: "Default primary agent to use when no session agent is selected",
   }),
@@ -92,6 +95,21 @@ export class Info extends Schema.Class<Info>("Config.Info")({
   compaction: ConfigCompaction.Info.pipe(optional).annotate({
     description: "Conversation compaction behavior",
   }),
+  goal: Schema.Struct({
+    model: ConfigModel.Selection.pipe(optional),
+    variant: ConfigModel.VariantID.pipe(optional),
+    prompt: Schema.String.pipe(optional).annotate({
+      description: "Replaces the reviewer prompt. Supports ${objective}, ${background} and ${wait}; output must be a JSON verdict.",
+    }),
+  }).pipe(optional).annotate({ description: "The /goal loop's reviewer behavior" }),
+  btw: Schema.Struct({
+    model: ConfigModel.Selection.pipe(optional),
+    variant: ConfigModel.VariantID.pipe(optional),
+    prompt: Schema.String.pipe(optional).annotate({
+      description:
+        "Replaces the side-question instructions. Supports ${question}; otherwise the question is appended. Generation runs no tool loop, so instruct the model not to call tools.",
+    }),
+  }).pipe(optional).annotate({ description: "Side-question (/btw) behavior" }),
   skills: Schema.String.pipe(Schema.Array, optional).annotate({
     description: "Additional paths or URLs to discover skills from",
   }),

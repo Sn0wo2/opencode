@@ -3,6 +3,7 @@ export * as ConfigCommandPlugin from "./command.js"
 import { define } from "@opencode/plugin/effect/plugin"
 import type { Entry } from "@opencode/schema/config"
 import { ConfigCommand } from "@opencode/schema/config/command"
+import { ConfigModel } from "@opencode/schema/config/model"
 import { AppProcess } from "@opencode/util/process"
 import path from "path"
 import { Effect, Result, SchemaIssue, SchemaParser } from "effect"
@@ -11,6 +12,7 @@ import { Agent } from "../../agent.js"
 import { Config } from "../../config.js"
 import { Location } from "../../location.js"
 import { Session } from "../../session.js"
+import { SessionRunnerModel } from "../../session/runner/model.js"
 import { SubagentJob } from "../../session/subagent-job.js"
 import { ShellSelect } from "../../shell/select.js"
 import { FSUtil } from "@opencode/util/fs-util"
@@ -59,13 +61,7 @@ export const Plugin = define({
                 const agent = command.agent === undefined ? undefined : Agent.ID.make(command.agent)
                 const commandAgent = agent === undefined ? undefined : (yield* ctx.agent.get({ agentID: agent })).data
                 const model =
-                  command.model === undefined
-                    ? commandAgent?.model
-                    : {
-                        id: command.model.model,
-                        providerID: command.model.providerID,
-                        ...(command.model.variant === undefined ? {} : { variant: command.model.variant }),
-                      }
+                  command.model === undefined ? commandAgent?.model : ConfigModel.ref(command.model, command.variant)
                 const text = yield* evaluateTemplate(command.template, input.prompt.text, {
                   location,
                   processes,
@@ -79,6 +75,10 @@ export const Plugin = define({
                     title: command.description ?? name,
                     agent: selected.id,
                     model: model ?? selected.info?.model ?? parent.model,
+                    variant:
+                      command.model === undefined
+                        ? (command.variant ?? (yield* SessionRunnerModel.inheritedAgentVariant(selected.info, config)))
+                        : undefined,
                   })
                   yield* sessions.prompt({
                     ...input.prompt,
@@ -96,11 +96,24 @@ export const Plugin = define({
                   yield* subagents.start(recovery)
                   return
                 }
-                if (agent !== undefined) {
-                  const session = yield* ctx.session.get({ sessionID: input.sessionID })
-                  if (session.agent !== agent) yield* ctx.session.switchAgent({ sessionID: input.sessionID, agent })
-                }
-                if (model !== undefined) yield* ctx.session.switchModel({ sessionID: input.sessionID, model })
+                const variant =
+                  command.model === undefined
+                    ? (command.variant ?? (yield* SessionRunnerModel.inheritedAgentVariant(commandAgent, config)))
+                    : undefined
+                const session =
+                  agent !== undefined || variant !== undefined
+                    ? yield* ctx.session.get({ sessionID: input.sessionID })
+                    : undefined
+                const ref =
+                  session && variant !== undefined
+                    ? yield* sessions.selectVariant(
+                        { ...session, agent: agent ?? session.agent, model: model ?? session.model },
+                        variant,
+                      )
+                    : model
+                if (agent !== undefined && session?.agent !== agent)
+                  yield* ctx.session.switchAgent({ sessionID: input.sessionID, agent })
+                if (ref !== undefined) yield* ctx.session.switchModel({ sessionID: input.sessionID, model: ref })
                 yield* ctx.session.prompt({
                   ...input.prompt,
                   sessionID: input.sessionID,
@@ -143,7 +156,7 @@ const decode = Effect.fnUntraced(function* (directory: string, filepath: string,
     return
   }
   const info = decodeCommand({
-    ...ConfigMarkdown.joinLegacyVariant(markdown.data),
+    ...markdown.data,
     template: markdown.content.trim(),
   })
   if (Result.isFailure(info)) {

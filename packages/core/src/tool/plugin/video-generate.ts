@@ -4,6 +4,7 @@ import path from "path"
 import { Media, ToolFailure, VideoAspectRatio } from "@opencode/ai/effect"
 import type { Context } from "@opencode/plugin/effect/plugin"
 import type { Document, Entry } from "@opencode/schema/config"
+import { ConfigModel } from "@opencode/schema/config/model"
 import type { VideoID } from "@opencode/schema/generate"
 import { FSUtil } from "@opencode/util/fs-util"
 import { Global } from "@opencode/util/global"
@@ -16,6 +17,7 @@ import { FileAccess } from "../../file-access.js"
 import { BlobStore } from "../../blob-store.js"
 import { Job } from "../../job.js"
 import { Model } from "../../model.js"
+import { ModelResolver } from "../../model-resolver.js"
 import { Permission } from "../../permission.js"
 import { Session } from "../../session.js"
 import { BackgroundResult } from "../../session/background-result.js"
@@ -76,6 +78,9 @@ export const Input = Schema.Struct({
   model: Schema.optionalKey(Schema.String).annotate({
     description:
       'NEVER set this unless the user explicitly asks for a particular video model. The value is written as "providerID/modelID". Do not guess the ID: look it up with the models tool using type: "video", filtering to your own provider first.',
+  }),
+  variant: Schema.optionalKey(ConfigModel.VariantID).annotate({
+    description: "Variant of the selected or inherited video model. Only set this when the user asks for a variant.",
   }),
   path: Schema.optionalKey(Schema.String).annotate({
     description:
@@ -189,20 +194,24 @@ export const Plugin = {
 
     const resolveModel = Effect.fn("VideoGenerateTool.resolveModel")(function* (
       input: string | undefined,
+      variant: Model.VariantID | undefined,
       sessionID: SessionSchema.ID,
     ) {
       const available = yield* models.available(["video"])
       if (!input) {
         // A configured default that isn't available falls back to the automatic pick.
-        const configured = configuredModel(yield* config.entries())
+        const settings = configuredVideo(yield* config.entries())
+        const configured = settings?.model
         const providerID = (yield* ctx.session.get({ sessionID })).model?.providerID
-        const model =
-          (configured &&
-            available.find((model) => model.providerID === configured.providerID && model.id === configured.model)) ??
-          available.find((model) => model.providerID === providerID) ??
-          available[0]
+        const preferred =
+          configured &&
+          available.find((model) => model.providerID === configured.providerID && model.id === configured.model)
+        const model = preferred ?? available.find((model) => model.providerID === providerID) ?? available[0]
         if (!model) return yield* new ToolFailure({ message: "No video model is available." })
-        return model
+        return {
+          model,
+          variant: variant ?? (preferred || !configured ? (configured?.variant ?? settings?.variant) : undefined),
+        }
       }
       const ref = yield* Effect.try({
         try: () => Model.Ref.parse(input),
@@ -213,7 +222,7 @@ export const Plugin = {
         return yield* new ToolFailure({
           message: `Model "${ref.providerID}/${ref.id}" is not an available video model. Use the models tool with type: "video" to see what is available.`,
         })
-      return model
+      return { model, variant: variant ?? ref.variant }
     })
 
     // URLs go to the provider as they are, which most video APIs prefer; local files are read and sent inline.
@@ -299,7 +308,12 @@ export const Plugin = {
           output: Output,
           execute: (input, context) =>
             Effect.gen(function* () {
-              const model = yield* resolveModel(input.model, context.sessionID)
+              const selected = yield* resolveModel(input.model, input.variant, context.sessionID)
+              const model = selected.model
+              if (selected.variant !== undefined)
+                yield* ModelResolver.withVariant(model, selected.variant).pipe(
+                  Effect.mapError((error) => new ToolFailure({ message: error.message, error })),
+                )
               const ref = `${model.providerID}/${model.id}`
               if (input.aspect !== undefined && !Schema.is(VideoAspectRatio)(input.aspect))
                 return yield* new ToolFailure({
@@ -335,7 +349,7 @@ export const Plugin = {
               // Submitting runs in the foreground so a rejected request fails the call; the wait runs as a job.
               const started = yield* videos.start(
                 {
-                  model: Model.Ref.make({ providerID: model.providerID, id: model.id }),
+                  model: Model.Ref.make({ providerID: model.providerID, id: model.id, variant: selected.variant }),
                   prompt: input.prompt,
                   start,
                   end,
@@ -387,9 +401,9 @@ function videoGenerate(entries: readonly Entry[]) {
   )?.info.experimental?.video_generate
 }
 
-function configuredModel(entries: readonly Entry[]) {
+function configuredVideo(entries: readonly Entry[]) {
   const value = videoGenerate(entries)
-  return typeof value === "object" ? value.model : undefined
+  return typeof value === "object" ? value : undefined
 }
 
 function urlType(url: string) {

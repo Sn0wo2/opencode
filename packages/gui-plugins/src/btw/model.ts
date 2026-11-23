@@ -126,13 +126,17 @@ export function createBtw(ctx: SetupContext<typeof Btw>) {
 
     session.server.client.session
       .generate(
-        { sessionID: session.id, prompt: [instructions, effect.question].join("\n\n") },
+        {
+          sessionID: session.id,
+          prompt: [instructions, effect.question].join("\n\n"),
+          experimental: { btw: effect.question },
+        },
         { signal: AbortSignal.any([ctx.signal, controller.signal]) },
       )
       .then(
         (reply) => {
           if (ctx.signal.aborted) return
-          settle({ type: "generate.succeeded", ...result, text: reply.text, now: Date.now() })
+          settle({ type: "generate.succeeded", ...result, text: reply.text, model: reply.experimental?.model, now: Date.now() })
         },
         (cause) => {
           if (ctx.signal.aborted) return

@@ -224,6 +224,7 @@ export function normalize(input: unknown): Result {
   const nativeAtomic = {
     $schema: Info.fields.$schema,
     shell: Info.fields.shell,
+    variant: Info.fields.variant,
     default_agent: Info.fields.default_agent,
     share: Info.fields.share,
     enterprise: Info.fields.enterprise,
@@ -236,6 +237,8 @@ export function normalize(input: unknown): Result {
     websearch: Info.fields.websearch,
     worktree: Info.fields.worktree,
     warming: Info.fields.warming,
+    goal: Info.fields.goal,
+    btw: Info.fields.btw,
   }
   Object.entries(nativeAtomic).forEach(([key, schema]) => {
     if (!own(input, key)) return
@@ -693,7 +696,7 @@ function diagnoseSelection(value: Record<string, unknown>, path: string[], diagn
   if (
     own(value, "variant") &&
     typeof value.variant === "string" &&
-    (!modelValid || value.variant.length === 0 || value.variant.includes("#"))
+    (value.variant.length === 0 || value.variant.includes("#"))
   )
     diagnostics.push({
       kind: "unsupported",

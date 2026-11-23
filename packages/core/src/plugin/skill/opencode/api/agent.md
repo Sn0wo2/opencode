@@ -14,5 +14,5 @@ Returns: `{ location: Location.PublicRef; data: Agent.Info }`
 
 ## Types
 
-- `Agent.Info`: `{ id, name, model, request, system, instructions, description, mode, hidden, color, steps, permissions }`
+- `Agent.Info`: `{ id, name, model, variant, request, system, instructions, description, mode, hidden, color, steps, permissions }`
 - `Location.PublicRef`: `{ directory: string }`

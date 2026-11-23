@@ -24,5 +24,7 @@ describe("ConfigModel.Selection", () => {
     expect(() => decode("gpt-5")).toThrow()
     expect(() => decode("openai/gpt-5#")).toThrow()
     expect(() => decode({ providerID: "openai", model: "gpt-5#high" })).toThrow()
+    expect(() => decode({ variant: "high" })).toThrow()
+    expect(() => Model.Ref.parse("#high")).toThrow()
   })
 })

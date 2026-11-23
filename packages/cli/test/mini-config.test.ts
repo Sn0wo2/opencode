@@ -46,6 +46,7 @@ test("mini handler passes resolved CLI keybinds to the runtime", async () => {
         replay: true as never,
         replayLimit: Option.none(),
         model: Option.none(),
+        variant: Option.none(),
         agent: Option.none(),
         prompt: Option.none(),
         demo: false,

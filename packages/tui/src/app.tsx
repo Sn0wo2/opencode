@@ -62,7 +62,7 @@ import { DataProvider, useData } from "./context/data"
 import { SessionTabsProvider, useSessionTabs } from "./context/session-tabs"
 import { LocationProvider, useLocation } from "./context/location"
 import { LocalProvider, useLocal } from "./context/local"
-import { PermissionProvider } from "./context/permission"
+import { PermissionAutoAccept, PermissionProvider } from "./context/permission"
 import { DialogModel } from "./component/dialog-model"
 import { useConnected } from "./component/use-connected"
 import { DialogMcp } from "./component/dialog-mcp"
@@ -416,6 +416,7 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
                                                 <DataProvider directory={directory}>
                                                   <LocationProvider>
                                                     <SessionTabsProvider>
+                                                      <PermissionAutoAccept />
                                                       <SessionTerminalsProvider>
                                                         <ThemeProvider
                                                           mode={mode}
@@ -683,6 +684,11 @@ function App() {
   const args = useArgs()
   const startupText = args.sessionID || args.continue ? args.takePrompt() : undefined
   const startupPrompt = startupText ? { text: startupText, files: [], agents: [], pasted: [] } : undefined
+  const openStartupSession = (sessionID: string) =>
+    batch(() => {
+      local.model.setStartupSession(sessionID)
+      route.navigate({ type: "session", sessionID, prompt: startupPrompt })
+    })
   onMount(() => {
     batch(() => {
       if (args.agent) local.agent.set(args.agent)
@@ -697,6 +703,7 @@ function App() {
         local.model.set({ providerID, modelID }, { recent: true })
       }
       if (args.sessionID && !args.fork) {
+        local.model.setStartupSession(args.sessionID)
         route.navigate({
           type: "session",
           sessionID: args.sessionID,
@@ -723,12 +730,12 @@ function App() {
         const match = response.data[0]?.id
         if (!match) return
         if (!args.fork) {
-          route.navigate({ type: "session", sessionID: match, prompt: startupPrompt })
+          openStartupSession(match)
           return
         }
         void client.api.session
           .fork({ sessionID: match })
-          .then((result) => route.navigate({ type: "session", sessionID: result.id, prompt: startupPrompt }))
+          .then((result) => openStartupSession(result.id))
           .catch(toast.error)
       })
       .catch(toast.error)
@@ -741,7 +748,7 @@ function App() {
     forked = true
     void client.api.session
       .fork({ sessionID: args.sessionID })
-      .then((result) => route.navigate({ type: "session", sessionID: result.id, prompt: startupPrompt }))
+      .then((result) => openStartupSession(result.id))
       .catch(toast.error)
   })
 

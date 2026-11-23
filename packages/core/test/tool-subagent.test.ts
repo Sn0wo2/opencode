@@ -785,6 +785,16 @@ describe("SubagentTool", () => {
             variant: Model.VariantID.make("default"),
           })
 
+          expect(yield* call("call-variant", { sessionID: child.id, variant: "fast" })).toMatchObject({
+            status: "completed",
+            metadata: { sessionID: child.id },
+          })
+          expect((yield* sessions.get(child.id)).model).toEqual(overrideModel)
+          expect(yield* call("call-invalid-variant", { sessionID: child.id, variant: "slow" })).toMatchObject({
+            status: "error",
+            error: { message: "Variant unavailable for test/override: slow" },
+          })
+
           const failures = [
             ["not-a-ref", 'Invalid model "not-a-ref". Use "providerID/modelID" or "providerID/modelID#variant".'],
             ["test/missing", 'Model "test/missing" is not available. Use the models tool to see what is available.'],

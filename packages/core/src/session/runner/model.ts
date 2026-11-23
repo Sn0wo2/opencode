@@ -7,6 +7,7 @@ import { Provider } from "@opencode/schema/provider"
 import { Context, Effect, Layer, Schema } from "effect"
 import type { SessionRequestKind } from "@opencode/plugin/effect/session"
 import { Agent } from "../../agent.js"
+import { Config } from "../../config.js"
 import { ModelResolver } from "../../model-resolver.js"
 import { PluginHooks } from "../../plugin/hooks.js"
 import { SessionSchema } from "../schema.js"
@@ -35,9 +36,11 @@ export class ModelUnavailableError extends Schema.TaggedError<ModelUnavailableEr
 export type Error = ModelNotSelectedError | ModelUnavailableError | ModelResolver.Error
 export type Resolved = ModelResolver.Resolved
 
+type Selection = Pick<SessionSchema.Info, "id" | "model" | "agent">
+
 export interface Interface {
   readonly select: (
-    session: SessionSchema.Info,
+    session: Selection,
     available: () => Effect.Effect<ReadonlyArray<Model.Info>>,
   ) => Effect.Effect<
     { readonly info: Model.Info; readonly variant: Model.VariantID | undefined },
@@ -47,11 +50,20 @@ export interface Interface {
   readonly resolve: (
     session: SessionSchema.Info,
     available: () => Effect.Effect<ReadonlyArray<Model.Info>>,
-    request: { readonly kind: SessionRequestKind; readonly agent: Agent.ID },
+    request: { readonly kind: SessionRequestKind; readonly agent: Agent.ID; readonly variant?: Model.VariantID },
   ) => Effect.Effect<Resolved, Error>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/SessionRunnerModel") {}
+
+export const inheritedAgentVariant = Effect.fnUntraced(function* (
+  agent: Agent.Info | undefined,
+  config: Config.Interface,
+) {
+  if (agent?.variant !== undefined) return agent.variant
+  if (agent?.model && agent.model.variant === undefined)
+    return ModelResolver.configuredVariant(yield* config.entries(), agent.model)
+})
 
 /** Builds a Resolved whose catalog identity mirrors the route model. Test or embedding seam. */
 export const resolved = (
@@ -83,10 +95,11 @@ const layer = Layer.effect(
   Effect.gen(function* () {
     const resolver = yield* ModelResolver.Service
     const agents = yield* Agent.Service
+    const config = yield* Config.Service
     const hooks = yield* PluginHooks.Service
     // Location plugins populate and filter the catalog asynchronously during layer startup.
     const select = Effect.fn("SessionRunnerModel.select")(function* (
-      session: SessionSchema.Info,
+      session: Selection,
       available: () => Effect.Effect<ReadonlyArray<Model.Info>>,
     ) {
       const find = (ref: Model.Ref) =>
@@ -98,21 +111,26 @@ const layer = Layer.effect(
         if (info) return { info, variant: session.model.variant }
         return yield* new ModelUnavailableError({ providerID: session.model.providerID, modelID: session.model.id })
       }
-      const agent = (yield* agents.select(session.agent)).info?.model
-      const preferred = agent && (yield* find(agent))
-      if (preferred) return { info: preferred, variant: agent.variant }
+      const agent = (yield* agents.select(session.agent)).info
+      const preferred = agent?.model && (yield* find(agent.model))
+      if (preferred)
+        return {
+          info: preferred,
+          variant: (yield* inheritedAgentVariant(agent, config)) ?? agent?.model?.variant,
+        }
       const info = yield* resolver.fallback()
-      if (info) return { info, variant: undefined }
+      if (info) return { info, variant: agent?.variant ?? info.defaultVariant }
       return yield* new ModelNotSelectedError({ sessionID: session.id })
     })
     return Service.of({
       select,
       resolve: Effect.fn("SessionRunnerModel.resolve")(function* (session, available, request) {
         const selected = yield* select(session, available)
+        const variant = request.variant ?? selected.variant
         const ref = Model.Ref.make({
           providerID: selected.info.providerID,
           id: selected.info.id,
-          ...(selected.variant === undefined ? {} : { variant: selected.variant }),
+          ...(variant === undefined ? {} : { variant }),
         })
         const model = (yield* hooks.trigger("session", "experimental.model.resolve", {
           sessionID: session.id,
@@ -121,7 +139,7 @@ const layer = Layer.effect(
           model: ref,
         })).model
         if (model.providerID === ref.providerID && model.id === ref.id && model.variant === ref.variant)
-          return yield* resolver.resolveModel(selected.info, selected.variant)
+          return yield* resolver.resolveModel(selected.info, variant)
         // Same provider only: the model may be hidden from the picker, and its credentials and hooks stay the selection's.
         const resolved = model.providerID === ref.providerID ? yield* resolver.resolve(model) : undefined
         if (resolved) return resolved
@@ -134,5 +152,5 @@ const layer = Layer.effect(
 export const node = makeLocationNode({
   service: Service,
   layer,
-  deps: [ModelResolver.node, Agent.node, PluginHooks.node],
+  deps: [ModelResolver.node, Agent.node, PluginHooks.node, Config.node],
 })

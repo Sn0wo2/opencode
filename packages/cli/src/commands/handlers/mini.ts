@@ -29,6 +29,7 @@ export default Runtime.handler(Commands.commands.mini, (input) =>
         session: Option.getOrUndefined(input.session),
         fork: input.fork,
         model: Option.getOrUndefined(input.model),
+        variant: Option.getOrUndefined(input.variant),
         agent: Option.getOrUndefined(input.agent),
         prompt: Option.getOrUndefined(input.prompt),
         replay: Option.getOrUndefined(input.replay) ?? resolved.mini?.replay ?? true,

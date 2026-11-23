@@ -112,13 +112,25 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
                 title: ctx.payload.title,
                 agent: ctx.payload.agent,
                 model: ctx.payload.model,
+                variant: ctx.payload.experimental?.variant,
                 metadata: ctx.payload.metadata,
                 permissions: ctx.payload.permissions,
                 ...(ctx.payload.parentID === undefined
                   ? { location: ctx.payload.location ?? { directory: AbsolutePath.make(process.cwd()) } }
                   : { parentID: ctx.payload.parentID }),
               })
-              .pipe(Effect.catchTag("Session.NotFoundError", missingSession)),
+              .pipe(
+                Effect.catchTag("Session.NotFoundError", missingSession),
+                Effect.catchTag(
+                  [
+                    "SessionRunnerModel.ModelUnavailableError",
+                    "SessionRunnerModel.ModelNotSelectedError",
+                    "SessionRunnerModel.VariantUnavailableError",
+                  ],
+                  (error) => new InvalidRequestError({ message: error.message, field: "experimental.variant" }),
+                ),
+                locationErrors,
+              ),
           }
         }),
       )
@@ -594,13 +606,21 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
         "session.generate",
         Effect.fn(function* (ctx) {
           const result = yield* session
-            .generate({ sessionID: ctx.params.sessionID, prompt: ctx.payload.prompt })
+            .generate({
+              sessionID: ctx.params.sessionID,
+              prompt: ctx.payload.prompt,
+              experimental: ctx.payload.experimental,
+            })
             .pipe(
-              Effect.mapError((error) =>
-                error._tag === "Session.NotFoundError"
-                  ? missingSession(error)
-                  : new ServiceUnavailableError({ message: error.message, service: "session generation" }),
-              ),
+              Effect.mapError((error) => {
+                if (error._tag === "Session.NotFoundError") return missingSession(error)
+                if (
+                  error._tag === "SessionRunnerModel.VariantUnavailableError" &&
+                  ctx.payload.experimental?.variant !== undefined
+                )
+                  return new InvalidRequestError({ message: error.message, field: "experimental.variant" })
+                return new ServiceUnavailableError({ message: error.message, service: "session generation" })
+              }),
             )
           return { data: result }
         }),

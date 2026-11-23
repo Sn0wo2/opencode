@@ -6,7 +6,7 @@ import { LLMClient } from "@opencode/ai/effect"
 import { ListAnchor, ListCursor, ListFilter } from "@opencode/schema/session"
 import { and, desc, eq } from "drizzle-orm"
 import { Project } from "./project.js"
-import { Model } from "@opencode/schema/model"
+import { Model } from "./model.js"
 import { Location } from "./location.js"
 import type { FileSystem } from "./filesystem.js"
 import { SessionMessage } from "./session/message.js"
@@ -27,6 +27,8 @@ import { App } from "./app.js"
 import { Slug } from "./util/slug.js"
 import path from "path"
 import { SessionRunner } from "./session/runner/index.js"
+import { SessionRunnerModel } from "./session/runner/model.js"
+import { ModelResolver } from "./model-resolver.js"
 import { SessionStore } from "./session/store.js"
 import { SessionExecution } from "./session/execution.js"
 import {
@@ -93,6 +95,7 @@ type CreateBaseInput = {
   title?: string
   agent?: Agent.ID
   model?: Model.Ref
+  variant?: string
   metadata?: SessionSchema.Metadata
   permissions?: Permission.Ruleset
   /** Experimental: a working directory for bare paths and commands; a child inherits its parent's when omitted. */
@@ -100,6 +103,13 @@ type CreateBaseInput = {
 }
 type CreateInput = CreateBaseInput &
   ({ location: Location.Ref; parentID?: never } | { parentID: SessionSchema.ID; location?: never })
+
+type VariantSelection = Pick<SessionSchema.Info, "id" | "model" | "agent" | "location">
+type VariantSelectionError =
+  | FileSystem.DirectoryNotFoundError
+  | SessionRunnerModel.ModelNotSelectedError
+  | SessionRunnerModel.ModelUnavailableError
+  | ModelResolver.VariantUnavailableError
 
 type CompactInput = Parameters<Session.Handle["compact"]>[0] & { sessionID: SessionSchema.ID }
 
@@ -136,7 +146,8 @@ export interface Interface {
     },
     InvalidListCursorError
   >
-  readonly create: (input: CreateInput) => Effect.Effect<SessionSchema.Info, NotFoundError>
+  readonly create: (input: CreateInput) => Effect.Effect<SessionSchema.Info, NotFoundError | VariantSelectionError>
+  readonly selectVariant: (session: VariantSelection, variant: string) => Effect.Effect<Model.Ref, VariantSelectionError>
   readonly fork: (
     input: ForkInput,
   ) => Effect.Effect<SessionSchema.Info, NotFoundError | MessageNotFoundError | ForkEmptyError>
@@ -297,8 +308,20 @@ const layer = Layer.effect(
     const mediaBlob = (session: SessionSchema.Info) => SessionBlob.enabledFor(instances, session)
     const isDurableSessionEvent = (item: Bus.LogItem): item is SessionEvent.DurableEvent =>
       Object.hasOwn(SessionEvent.Durable.cases, item.type)
+    const selectVariant = Effect.fn("Session.selectVariant")(
+      function* (session: VariantSelection, requested: string) {
+        const models = yield* Model.Service
+        const runner = yield* SessionRunnerModel.Service
+        const selected = yield* runner.select(session, models.available)
+        const variant = Model.VariantID.make(requested)
+        yield* ModelResolver.withVariant(selected.info, variant)
+        return Model.Ref.make({ id: selected.info.id, providerID: selected.info.providerID, variant })
+      },
+      (effect, session) => effect.pipe(Effect.provide(locations.get(session.location))),
+    )
 
     const result = Service.of({
+      selectVariant,
       create: Effect.fn("Session.create")(function* (input) {
         const sessionID = input.id ?? SessionSchema.ID.create()
         const recorded = yield* store.get(sessionID)
@@ -309,6 +332,10 @@ const layer = Layer.effect(
         if (location === undefined)
           return yield* Effect.die(new Error("Session.create requires either location or an existing parentID"))
         const project = yield* projects.resolve(location.directory)
+        const model =
+          input.variant === undefined
+            ? input.model
+            : yield* selectVariant({ id: sessionID, location, agent: input.agent, model: input.model }, input.variant)
         const projected = yield* bus
           .publish(
             SessionEvent.Created,
@@ -326,7 +353,7 @@ const layer = Layer.effect(
               // location, so host policies that read them treat the family uniformly.
               metadata: input.metadata ?? parent?.metadata,
               permissions: input.permissions ?? parent?.permissions,
-              model: input.model,
+              model,
             },
             { location },
           )

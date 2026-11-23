@@ -677,6 +677,7 @@ export function make(options: ClientOptions) {
               title: input?.["title"],
               agent: input?.["agent"],
               model: input?.["model"],
+              experimental: input?.["experimental"],
               location: input?.["location"],
               metadata: input?.["metadata"],
               permissions: input?.["permissions"],
@@ -968,7 +969,7 @@ export function make(options: ClientOptions) {
           {
             method: "POST",
             path: `/api/session/${encodeURIComponent(input.sessionID)}/generate`,
-            body: { prompt: input["prompt"] },
+            body: { prompt: input["prompt"], experimental: input["experimental"] },
             successStatus: 200,
             declaredStatuses: [400, 401, 404, 503],
             empty: false,
@@ -1223,7 +1224,7 @@ export function make(options: ClientOptions) {
             {
               method: "POST",
               path: `/api/experimental/generate/text`,
-              body: { prompt: input["prompt"], model: input["model"] },
+              body: { prompt: input["prompt"], model: input["model"], variant: input["variant"] },
               successStatus: 200,
               declaredStatuses: [400, 401, 404, 422, 502, 503],
               empty: false,

@@ -7,7 +7,7 @@ import { open } from "node:fs/promises"
 import path from "node:path"
 import { readStdin, readStdinIfReady } from "../util/io"
 import { ServerConnection } from "../services/server-connection"
-import { createWorktreeLocation, parseSessionTargetModel, resolveSessionTarget } from "../session-target"
+import { createWorktreeLocation, parseSessionTargetModel, prepareVariant, resolveSessionTarget } from "../session-target"
 import { toolInlineInfo } from "@opencode/tui/mini/tool"
 import { runNonInteractivePrompt } from "./noninteractive"
 import { UI } from "./ui"
@@ -22,6 +22,7 @@ export type RunCommandInput = {
   fork?: boolean
   worktree?: string | true
   model?: string
+  variant?: string
   agent?: string
   format: "default" | "json"
   file: string[]
@@ -37,15 +38,6 @@ type Prepared = {
   directory: string
   message: string
   files: FilePart[]
-}
-
-class RunTargetError extends Error {
-  constructor(
-    message: string,
-    readonly sessionID?: string,
-  ) {
-    super(message)
-  }
 }
 
 const ATTACH_FILE_MAX_BYTES = 10 * 1024 * 1024
@@ -83,7 +75,7 @@ async function execute(input: RunCommandInput, prepared: Prepared, endpoint: End
     // Bun's default five-minute deadline terminates the event stream used by long-running sessions.
     fetch: noTimeoutFetch,
   })
-  const explicit = parseRunModel(input.model)
+  const model = parseSessionTargetModel(input.model)
   const location = { directory: prepared.directory }
   const worktree =
     input.worktree === undefined
@@ -100,22 +92,12 @@ async function execute(input: RunCommandInput, prepared: Prepared, endpoint: End
     continue: input.continue,
     session: input.session,
     fork: input.fork,
-    model: explicit
-      ? { providerID: explicit.model.providerID, id: explicit.model.modelID, variant: explicit.variant }
-      : undefined,
+    model,
     agent: input.agent,
     environment: input.server.service ? Env.session() : undefined,
-    prepare: async (next) => {
-      if (explicit?.variant && !next.model)
-        throw new RunTargetError("Cannot select a variant before selecting a model", next.session?.id)
-      return { model: next.model, agent: next.agent }
-    },
-  }).catch((error) => {
-    if (!(error instanceof RunTargetError)) throw error
-    reportRunError(input, error.message, error.sessionID)
-    return undefined
+    prepare: prepareVariant(input.variant),
+    signal,
   })
-  if (!target) return
   const title =
     !target.resume && input.title !== undefined
       ? input.title || prepared.message.slice(0, 50) + (prepared.message.length > 50 ? "..." : "")
@@ -156,15 +138,6 @@ function localDirectory(root: string) {
     return process.cwd()
   } catch {
     fail(`Failed to change directory to ${root}`)
-  }
-}
-
-export function parseRunModel(value?: string) {
-  const ref = parseSessionTargetModel(value)
-  if (!ref) return
-  return {
-    model: { providerID: ref.providerID, modelID: ref.id },
-    variant: ref.variant,
   }
 }
 

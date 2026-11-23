@@ -4,7 +4,6 @@ import { Model } from "../model.js"
 import { Permission } from "../permission.js"
 import { Context, Effect, Layer } from "effect"
 import { Agent } from "../agent.js"
-import type { SessionRequestKind } from "@opencode/plugin/effect/session"
 import { CodeModeAgents } from "../codemode/agents.js"
 import { CodeModeApi } from "../codemode/api.js"
 import { CodeModeInstructions } from "../codemode/instructions.js"
@@ -70,7 +69,7 @@ export interface Interface {
   readonly load: (selection: Selection) => Effect.Effect<Loaded, SessionRunnerModel.Error>
   readonly resolveModel: (
     session: SessionSchema.Info,
-    request: { readonly kind: SessionRequestKind; readonly agent: Agent.ID },
+    request: Parameters<SessionRunnerModel.Interface["resolve"]>[2],
   ) => Effect.Effect<SessionRunnerModel.Resolved, SessionRunnerModel.Error>
   /** Selects auxiliary title capabilities without instruction or tool preflight. */
   readonly selectTitle: (session: SessionSchema.Info) => Effect.Effect<
@@ -117,7 +116,7 @@ const layer = Layer.effect(
 
     const resolveModel = (
       session: SessionSchema.Info,
-      request: { readonly kind: SessionRequestKind; readonly agent: Agent.ID },
+      request: Parameters<SessionRunnerModel.Interface["resolve"]>[2],
     ) => models.resolve(session, model.available, request)
 
     const selectTitle = Effect.fn("SessionContext.selectTitle")(function* (session: SessionSchema.Info) {
@@ -137,7 +136,7 @@ const layer = Layer.effect(
         // Without a lower variant, the primary model at its selected variant is already the fallback.
         const info = yield* model.get(primary.ref.providerID, primary.ref.id)
         const variant = info && lowerVariant(info, primary.ref.variant)
-        return variant && { info, variant }
+        return info && (variant !== undefined || agent.variant !== undefined) ? { info, variant } : undefined
       })
       const preferred =
         candidate &&
@@ -150,7 +149,7 @@ const layer = Layer.effect(
               ...(candidate.variant ? { variant: candidate.variant } : {}),
             }),
           },
-          { kind: "title", agent: agent.id },
+          { kind: "title", agent: agent.id, variant: agent.variant },
         ).pipe(Effect.orElseSucceed(() => undefined)))
       const selected = preferred ?? primary
       if (!selected) return

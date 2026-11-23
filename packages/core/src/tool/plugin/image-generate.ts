@@ -4,6 +4,7 @@ import path from "path"
 import { ToolFailure } from "@opencode/ai/effect"
 import type { Context } from "@opencode/plugin/effect/plugin"
 import type { Document, Entry } from "@opencode/schema/config"
+import { ConfigModel } from "@opencode/schema/config/model"
 import { Identifier } from "@opencode/schema/identifier"
 import { Global } from "@opencode/util/global"
 import { Duration, Effect, Schema, Scope, Stream } from "effect"
@@ -18,6 +19,7 @@ import { ImageNotice } from "../../image/notice.js"
 import { Job } from "../../job.js"
 import { Mime } from "../../mime.js"
 import { Model } from "../../model.js"
+import { ModelResolver } from "../../model-resolver.js"
 import { Permission } from "../../permission.js"
 import { Session } from "../../session.js"
 import { SessionMessage } from "../../session/message.js"
@@ -60,6 +62,9 @@ export const Input = Schema.Struct({
     description:
       'NEVER set this unless the user explicitly asks for a particular image model or variant. The value is written as "providerID/modelID", or "providerID/modelID#variant" to include a variant. Do not guess the ID: look it up with the models tool using type: "image", filtering to your own provider first.',
   }),
+  variant: Schema.optionalKey(ConfigModel.VariantID).annotate({
+    description: "Variant of the selected or inherited image model. Only set this when the user asks for a variant.",
+  }),
   path: Schema.optionalKey(Schema.String).annotate({
     description:
       "Where to save the image, relative to the session directory or absolute. The extension is replaced with the image's real format, and an existing file is overwritten. Defaults to a new file in the session's temp folder.",
@@ -85,22 +90,28 @@ export const Plugin = {
 
     const resolveModel = Effect.fn("ImageGenerateTool.resolveModel")(function* (
       input: string | undefined,
+      variant: Model.VariantID | undefined,
       sessionID: SessionSchema.ID,
       images: boolean,
     ) {
       const available = yield* models.available(["image"])
       if (!input) {
         // A configured default is a preference: when it can't serve this call, pick automatically and say so.
-        const configured = configuredModel(yield* config.entries())
+        const entry = imageGenerate(yield* config.entries())
+        const settings = typeof entry === "object" ? entry : undefined
+        const configured = settings?.model
+        const configuredVariant = configured?.variant ?? settings?.variant
         const preferred = configured
           ? available.find((model) => model.providerID === configured.providerID && model.id === configured.model)
           : undefined
         const variantMissing =
-          configured?.variant !== undefined &&
+          variant === undefined &&
+          configuredVariant !== undefined &&
+          configuredVariant !== "default" &&
           preferred !== undefined &&
-          !preferred.variants.some((variant) => variant.id === configured.variant)
+          !preferred.variants.some((item) => item.id === configuredVariant)
         if (preferred && !variantMissing && (!images || acceptsImages(preferred)))
-          return { model: preferred, variant: configured?.variant }
+          return { model: preferred, variant: variant ?? configuredVariant }
         const providerID = (yield* ctx.session.get({ sessionID })).model?.providerID
         const model = defaultModel(available, { providerID, images })
         if (!model)
@@ -109,28 +120,33 @@ export const Plugin = {
               ? "None of the available image models accept input images."
               : "No image model is available.",
           })
-        if (!configured) return { model }
-        const ref = `${configured.providerID}/${configured.model}${configured.variant ? `#${configured.variant}` : ""}`
+        if (!configured) return { model, variant: variant ?? configuredVariant }
+        const ref = `${configured.providerID}/${configured.model}${configuredVariant ? `#${configuredVariant}` : ""}`
         const reason = !preferred
           ? "isn't available"
           : variantMissing
-            ? `has no variant "${configured.variant}"`
+            ? `has no variant "${configuredVariant}"`
             : "doesn't accept input images"
-        return { model, note: ` ${ref} ${reason}; used ${model.providerID}/${model.id}.` }
+        return { model, variant, note: ` ${ref} ${reason}; used ${model.providerID}/${model.id}.` }
       }
-      const ref = yield* Effect.try({
+      const parsed = yield* Effect.try({
         try: () => Model.Ref.parse(input),
         catch: () =>
           new ToolFailure({
             message: `Invalid model "${input}". Use "providerID/modelID" or "providerID/modelID#variant".`,
           }),
       })
+      const ref = variant === undefined ? parsed : { ...parsed, variant }
       const model = available.find((model) => model.providerID === ref.providerID && model.id === ref.id)
       if (model === undefined)
         return yield* new ToolFailure({
           message: `Model "${ref.providerID}/${ref.id}" is not an available image model. Use the models tool with type: "image" to see what is available.`,
         })
-      if (ref.variant !== undefined && !model.variants.some((variant) => variant.id === ref.variant))
+      if (
+        ref.variant !== undefined &&
+        ref.variant !== "default" &&
+        !model.variants.some((variant) => variant.id === ref.variant)
+      )
         return yield* new ToolFailure({
           message:
             model.variants.length === 0
@@ -258,9 +274,13 @@ export const Plugin = {
           output: Output,
           execute: (input, context) =>
             Effect.gen(function* () {
-              const resolved = yield* resolveModel(input.model, context.sessionID, input.images !== undefined)
+              const resolved = yield* resolveModel(input.model, input.variant, context.sessionID, input.images !== undefined)
               const model = resolved.model
               const variant = resolved.variant
+              if (!input.model && variant !== undefined)
+                yield* ModelResolver.withVariant(model, variant).pipe(
+                  Effect.mapError((error) => new ToolFailure({ message: error.message, error })),
+                )
               const ref = `${model.providerID}/${model.id}${variant ? `#${variant}` : ""}`
               const target = input.path ? yield* access.resolve({ path: input.path, kind: "file" }) : undefined
               // The extension the image is saved with follows its real format, whatever the requested path ends in.
@@ -379,11 +399,6 @@ function imageGenerate(entries: readonly Entry[]) {
   return entries.findLast(
     (entry): entry is Document => entry.type === "document" && entry.info.experimental?.image_generate !== undefined,
   )?.info.experimental?.image_generate
-}
-
-function configuredModel(entries: readonly Entry[]) {
-  const value = imageGenerate(entries)
-  return typeof value === "object" ? value.model : undefined
 }
 
 function acceptsImages(model: Model.Info) {

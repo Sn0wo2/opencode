@@ -203,6 +203,7 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S, FormI ext
           title: Schema.String.pipe(Schema.optional),
           agent: Agent.ID.pipe(Schema.optional),
           model: Model.Ref.pipe(Schema.optional),
+          experimental: Schema.Struct({ variant: Schema.String.pipe(optional) }).pipe(optional),
           location: Location.PublicRef.pipe(Schema.optional).annotate({
             description: "Defaults to the server's working directory. Ignored when parentID is set.",
           }),
@@ -215,7 +216,7 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S, FormI ext
           }),
         }),
         success: Schema.Struct({ data: PublicSessionInfo }),
-        error: SessionNotFoundError,
+        error: [SessionNotFoundError, InvalidRequestError, LocationNotFoundError],
       }).annotateMerge(
         OpenApi.annotations({
           identifier: "session.create",
@@ -708,12 +709,26 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S, FormI ext
     .add(
       HttpApiEndpoint.post("session.generate", "/api/session/:sessionID/generate", {
         params: { sessionID: Session.ID },
-        payload: Schema.Struct({ prompt: Schema.String }),
+        payload: Schema.Struct({
+          prompt: Schema.String,
+          experimental: Schema.optional(
+            Schema.Struct({
+              model: Schema.optional(Model.Ref),
+              variant: Schema.String.pipe(optional),
+              btw: Schema.optional(Schema.String),
+            }),
+          ),
+        }),
         success: Schema.Struct({
           // Same `tokens` and `cost` an assistant message reports for a step.
-          data: Schema.Struct({ text: Schema.String, tokens: TokenUsage.Info, cost: Money.USD }),
+          data: Schema.Struct({
+            text: Schema.String,
+            tokens: TokenUsage.Info,
+            cost: Money.USD,
+            experimental: Schema.optional(Schema.Struct({ model: Model.Ref })),
+          }),
         }).annotate({ identifier: "SessionGenerateResponse" }),
-        error: [SessionNotFoundError, ServiceUnavailableError],
+        error: [SessionNotFoundError, InvalidRequestError, ServiceUnavailableError],
       })
         .middleware(sessionLocationMiddleware)
         .annotateMerge(

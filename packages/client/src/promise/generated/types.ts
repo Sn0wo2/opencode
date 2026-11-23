@@ -507,8 +507,6 @@ export type SessionMessageCompactionRunning = {
 
 export type UsageLimitsBudgetModel = { providerID: ProviderID; modelID: string; name: string; spent?: MoneyUSD }
 
-export type SessionGenerateResponse = { data: { text: string; tokens: TokenUsageInfo; cost: MoneyUSD } }
-
 export type FileSystemEntry = { path: RelativePath; type: "file" | "directory" }
 
 export type SessionRevert = {
@@ -1151,6 +1149,10 @@ export type SessionMessageCompactionCompleted = {
   summary: string
   cost?: MoneyUSD
   tokens?: TokenUsageInfo
+}
+
+export type SessionGenerateResponse = {
+  data: { text: string; tokens: TokenUsageInfo; cost: MoneyUSD; experimental?: { model: ModelRef } | null }
 }
 
 export type SessionStatsModelUsage = { model: ModelRef; steps: number; tokens: TokenUsageInfo; cost: MoneyUSD }
@@ -2588,6 +2590,7 @@ export type ConfigEntry =
         $schema?: string
         shell?: string
         model?: string | { providerID: string; model: string; variant?: string }
+        variant?: string
         default_agent?: string
         update?: "disable" | "notify" | "auto"
         share?: "manual" | "auto" | "disabled"
@@ -2612,6 +2615,7 @@ export type ConfigEntry =
         agents?: {
           [x: string]: {
             model?: string | { providerID: string; model: string; variant?: string }
+            variant?: string
             request?: { headers?: { [x: string]: string }; body?: { [x: string]: JsonValue } }
             system?: string
             description?: string
@@ -2695,6 +2699,16 @@ export type ConfigEntry =
           keep?: { tokens?: number }
           buffer?: ConfigCompactionPercent | number
         }
+        goal?: {
+          model?: string | { providerID: string; model: string; variant?: string }
+          variant?: string
+          prompt?: string
+        }
+        btw?: {
+          model?: string | { providerID: string; model: string; variant?: string }
+          variant?: string
+          prompt?: string
+        }
         skills?: Array<string>
         commands?: {
           [x: string]: {
@@ -2702,6 +2716,7 @@ export type ConfigEntry =
             description?: string
             agent?: string
             model?: string | { providerID: string; model: string; variant?: string }
+            variant?: string
             subagent?: boolean
             subtask?: boolean
           }
@@ -2784,9 +2799,13 @@ export type ConfigEntry =
           compaction_jobs?: boolean
           sqlite_fts?: boolean
           browser_stream_tunnel?: boolean
-          video_generate?: boolean | { model?: string | { providerID: string; model: string; variant?: string } }
+          video_generate?:
+            | boolean
+            | { model?: string | { providerID: string; model: string; variant?: string }; variant?: string }
           part_rows?: boolean
-          image_generate?: boolean | { model?: string | { providerID: string; model: string; variant?: string } }
+          image_generate?:
+            | boolean
+            | { model?: string | { providerID: string; model: string; variant?: string }; variant?: string }
           subagent_depth?: number
           location_idle_timeout?: string | false
           policies?: Array<{
@@ -2898,6 +2917,7 @@ export type AgentInfo = {
   id: AgentID
   name: string
   model?: ModelRef
+  variant?: string
   request: ProviderRequest
   system?: string
   instructions?: string | { selected: string; unselected: string }
@@ -3627,6 +3647,7 @@ export type SessionCreateInput = {
   readonly title?: string | null | undefined
   readonly agent?: string | null | undefined
   readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null | undefined
+  readonly experimental?: { readonly variant?: string } | undefined
   readonly location?: { readonly directory: string } | null | undefined
   readonly metadata?: { readonly [x: string]: JsonValue } | null | undefined
   readonly permissions?:
@@ -3817,7 +3838,18 @@ export type SessionInboxUpdateInput = {
 
 export type SessionInboxUpdateOutput = void
 
-export type SessionGenerateInput = { readonly sessionID: string; readonly prompt: string }
+export type SessionGenerateInput = {
+  readonly sessionID: string
+  readonly prompt: string
+  readonly experimental?:
+    | {
+        readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
+        readonly variant?: string
+        readonly btw?: string | null
+      }
+    | null
+    | undefined
+}
 
 export type SessionGenerateOutput = SessionGenerateResponse["data"]
 
@@ -4231,6 +4263,7 @@ export type ModelDefaultOutput = { location: LocationPublicRef; data: ModelInfo 
 export type ExperimentalGenerateTextInput = {
   readonly prompt: string
   readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null | undefined
+  readonly variant?: string | undefined
 }
 
 export type ExperimentalGenerateTextOutput = GenerateTextResponse["data"]

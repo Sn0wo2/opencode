@@ -15,6 +15,7 @@ import { Model } from "../../model.js"
 const decodeOptions = { errors: "all", onExcessProperty: "ignore" } as const
 const decodeAgent = Schema.decodeUnknownSync(Schema.fromJsonString(ConfigAgent.Info), decodeOptions)
 const decodeSelection = Schema.decodeUnknownOption(ConfigModel.Selection)
+const decodeVariant = Schema.decodeUnknownOption(ConfigModel.VariantID)
 
 function permissions(info?: ConfigPermissionV1.Info) {
   const rules = (info ?? []).flatMap(([key, rule]) => {
@@ -46,9 +47,11 @@ export function migrateAgent(info: ConfigAgentV1.Info) {
     ...(info.temperature === undefined ? {} : { temperature: info.temperature }),
     ...(info.top_p === undefined ? {} : { top_p: info.top_p }),
   }
+  const model = modelSelection(info.model, info.variant)
   return decodeAgent(
     JSON.stringify({
-      model: modelSelection(info.model, info.variant),
+      model,
+      variant: model === undefined ? info.variant : undefined,
       request: Object.keys(body).length ? { body } : undefined,
       system: info.prompt,
       description: info.description,
@@ -63,11 +66,13 @@ export function migrateAgent(info: ConfigAgentV1.Info) {
 }
 
 export function migrateCommand(command: ConfigCommandV1.Info) {
+  const model = modelSelection(command.model, command.variant)
   return {
     template: command.template,
     description: command.description,
     agent: command.agent,
-    model: modelSelection(command.model, command.variant),
+    model,
+    variant: model === undefined ? Option.getOrUndefined(decodeVariant(command.variant)) : undefined,
     subagent: command.subtask,
   }
 }
@@ -75,11 +80,11 @@ export function migrateCommand(command: ConfigCommandV1.Info) {
 export function modelSelection(input?: string, variant?: string) {
   const selection = Option.getOrUndefined(decodeSelection(input))
   if (selection === undefined) return undefined
-  const selected = selection.variant ?? variant
+  const selected = selection.variant ?? Option.getOrUndefined(decodeVariant(variant))
   return {
     providerID: providerID(selection.providerID),
     model: selection.model,
-    ...(selected === undefined || selected.length === 0 || selected.includes("#") ? {} : { variant: selected }),
+    ...(selected === undefined ? {} : { variant: selected }),
   }
 }
 

@@ -5,6 +5,7 @@ import { useLocal, type ModelKey, type ModelSelection } from "@/providers/models
 import { useWorkspaceLocation } from "@/workspaces/location"
 import { useProviders } from "@/providers/catalog/providers"
 import { useData } from "@/runtime/server/current"
+import type { Agent } from "@/runtime/server/types"
 import { normalizeAgentList, normalizeProviderList } from "@/runtime/server/global-sync/utils"
 import { useModels } from "@/providers/models/models"
 import {
@@ -131,7 +132,7 @@ export function createComposerControls(input: { model?: ModelSelection } = {}) {
 }
 
 export function createComposerModelSelection(input: {
-  agent: () => { name: string; model?: ModelKey; variant?: string } | undefined
+  agent: () => Pick<Agent, "name" | "model" | "variant" | "variantOverride"> | undefined
 }) {
   const sdk = useWorkspaceLocation()
   const models = useModels()
@@ -299,9 +300,12 @@ export function createComposerModelSelection(input: {
         const key = { providerID: model.provider.id, modelID: model.id }
         const target = { ...key, baseModelID: models.standard(key).modelID, variants: model.variants }
         const global = configuredModel()
+        const agent = input.agent()
 
         return (
-          getConfiguredAgentVariant({ agent: input.agent(), model: target }) ??
+          agent?.variantOverride ??
+          getConfiguredAgentVariant({ agent, model: target }) ??
+          configuredModel.variant() ??
           getConfiguredAgentVariant({ agent: { model: global, variant: global?.variant }, model: target })
         )
       },

@@ -1058,11 +1058,18 @@
             }
           },
           "404": {
-            "description": "SessionNotFoundError",
+            "description": "SessionNotFoundError | LocationNotFoundError",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LocationNotFoundErrorEncoded"
+                    }
+                  ]
                 }
               }
             }
@@ -1127,6 +1134,15 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "experimental": {
+                    "type": "object",
+                    "properties": {
+                      "variant": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false
                   },
                   "location": {
                     "anyOf": [
@@ -3857,6 +3873,42 @@
                 "properties": {
                   "prompt": {
                     "type": "string"
+                  },
+                  "experimental": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "model": {
+                            "anyOf": [
+                              {
+                                "$ref": "#/components/schemas/Model.Ref"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "variant": {
+                            "type": "string"
+                          },
+                          "btw": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": ["prompt"],
@@ -5300,6 +5352,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "variant": {
+                    "type": "string"
                   }
                 },
                 "required": ["prompt"],
@@ -5420,6 +5475,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "variant": {
+                    "type": "string"
                   }
                 },
                 "required": ["prompt"],
@@ -17746,6 +17804,9 @@
           "model": {
             "$ref": "#/components/schemas/Model.Ref"
           },
+          "variant": {
+            "type": "string"
+          },
           "request": {
             "$ref": "#/components/schemas/Provider.Request"
           },
@@ -18475,6 +18536,10 @@
               }
             ]
           },
+          "variant": {
+            "type": "string",
+            "pattern": "^[^#]+$"
+          },
           "request": {
             "type": "object",
             "properties": {
@@ -18559,6 +18624,10 @@
                 "additionalProperties": false
               }
             ]
+          },
+          "variant": {
+            "type": "string",
+            "pattern": "^[^#]+$"
           },
           "subagent": {
             "type": "boolean"
@@ -18678,6 +18747,10 @@
                 "additionalProperties": false
               }
             ]
+          },
+          "variant": {
+            "type": "string",
+            "pattern": "^[^#]+$"
           },
           "default_agent": {
             "type": "string"
@@ -18924,6 +18997,86 @@
             },
             "additionalProperties": false
           },
+          "goal": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[^/#]+\\/[^#]+(?:#[^#]+)?$"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "providerID": {
+                        "type": "string",
+                        "pattern": "^[^/#]+$"
+                      },
+                      "model": {
+                        "type": "string",
+                        "pattern": "^[^#]+$"
+                      },
+                      "variant": {
+                        "type": "string",
+                        "pattern": "^[^#]+$"
+                      }
+                    },
+                    "required": ["providerID", "model"],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "variant": {
+                "type": "string",
+                "pattern": "^[^#]+$"
+              },
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          "btw": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[^/#]+\\/[^#]+(?:#[^#]+)?$"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "providerID": {
+                        "type": "string",
+                        "pattern": "^[^/#]+$"
+                      },
+                      "model": {
+                        "type": "string",
+                        "pattern": "^[^#]+$"
+                      },
+                      "variant": {
+                        "type": "string",
+                        "pattern": "^[^#]+$"
+                      }
+                    },
+                    "required": ["providerID", "model"],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "variant": {
+                "type": "string",
+                "pattern": "^[^#]+$"
+              },
+              "prompt": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
           "skills": {
             "type": "array",
             "items": {
@@ -19092,6 +19245,10 @@
                             "additionalProperties": false
                           }
                         ]
+                      },
+                      "variant": {
+                        "type": "string",
+                        "pattern": "^[^#]+$"
                       }
                     },
                     "additionalProperties": false
@@ -19135,6 +19292,10 @@
                             "additionalProperties": false
                           }
                         ]
+                      },
+                      "variant": {
+                        "type": "string",
+                        "pattern": "^[^#]+$"
                       }
                     },
                     "additionalProperties": false
@@ -27027,6 +27188,23 @@
               },
               "cost": {
                 "$ref": "#/components/schemas/Money.USD"
+              },
+              "experimental": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "model": {
+                        "$ref": "#/components/schemas/Model.Ref"
+                      }
+                    },
+                    "required": ["model"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": ["text", "tokens", "cost"],

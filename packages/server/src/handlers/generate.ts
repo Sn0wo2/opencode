@@ -13,7 +13,6 @@ import {
 } from "@opencode/protocol/errors"
 import type { DecisionRequest, VideoID, ImageRequest, VideoRequest } from "@opencode/schema/generate"
 import { Global } from "@opencode/util/global"
-import { Model } from "@opencode/schema/model"
 import { Effect } from "effect"
 import { HttpApiBuilder } from "effect/http-api"
 import { Api } from "../api"
@@ -26,7 +25,7 @@ export const GenerateHandler = HttpApiBuilder.group(Api, "server.generate", (han
     const videos = yield* VideoGeneration.Service
     const services = locations.get(Location.Ref.make({ directory: AbsolutePath.make(global.config) }))
     const text = Effect.fn("server.generate.text")(
-      function* (request: { readonly payload: { readonly prompt: string; readonly model?: Model.Ref } }) {
+      function* (request: { readonly payload: Generate.TextInput }) {
         const generate = yield* Generate.Service
         return { data: { text: yield* generate.text(request.payload).pipe(Effect.mapError(generateError)) } }
       },

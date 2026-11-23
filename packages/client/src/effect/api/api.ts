@@ -157,6 +157,7 @@ export type SessionCreateInput = {
   readonly title?: string | undefined
   readonly agent?: Agent.ID | undefined
   readonly model?: Model.Ref | undefined
+  readonly experimental?: { readonly variant?: string | undefined } | undefined
   readonly location?: Location.PublicRef | undefined
   readonly metadata?: Session.Metadata | undefined
   readonly permissions?: Permission.Ruleset | undefined
@@ -322,7 +323,17 @@ export type SessionInboxUpdateOperation<E = never> = (
   input: SessionInboxUpdateInput,
 ) => Effect.Effect<SessionInboxUpdateOutput, E>
 
-export type SessionGenerateInput = { readonly sessionID: Session.ID; readonly prompt: string }
+export type SessionGenerateInput = {
+  readonly sessionID: Session.ID
+  readonly prompt: string
+  readonly experimental?:
+    | {
+        readonly model?: Model.Ref | undefined
+        readonly variant?: string | undefined
+        readonly btw?: string | undefined
+      }
+    | undefined
+}
 export type SessionGenerateOutput = {
   readonly text: string
   readonly tokens: {
@@ -332,6 +343,7 @@ export type SessionGenerateOutput = {
     readonly cache: { readonly read: number; readonly write: number }
   }
   readonly cost: Money.USD
+  readonly experimental?: { readonly model: Model.Ref } | undefined
 }
 export type SessionGenerateOperation<E = never> = (
   input: SessionGenerateInput,
@@ -1502,7 +1514,11 @@ export interface ModelApi<E = never> {
   readonly default: ModelDefaultOperation<E>
 }
 
-export type ExperimentalGenerateTextInput = { readonly prompt: string; readonly model?: Model.Ref | undefined }
+export type ExperimentalGenerateTextInput = {
+  readonly prompt: string
+  readonly model?: Model.Ref | undefined
+  readonly variant?: string | undefined
+}
 export type ExperimentalGenerateTextOutput = { readonly text: string }
 export type ExperimentalGenerateTextOperation<E = never> = (
   input: ExperimentalGenerateTextInput,

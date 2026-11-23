@@ -5,7 +5,7 @@ import { noTimeoutFetch } from "@opencode/util/no-timeout-fetch"
 import { setTimeout } from "node:timers/promises"
 import { readStdin } from "./util/io"
 import { createMiniHost, INTERACTIVE_INPUT_ERROR, usingInteractiveStdin } from "./mini-host"
-import { parseSessionTargetModel, resolveSessionTarget, type SessionTargetPreparation } from "./session-target"
+import { parseSessionTargetModel, prepareVariant, resolveSessionTarget } from "./session-target"
 import { Env } from "./env"
 
 export type MiniCommandInput = {
@@ -17,6 +17,7 @@ export type MiniCommandInput = {
   session?: string
   fork?: boolean
   model?: string
+  variant?: string
   agent?: string
   prompt?: string
   replay?: boolean
@@ -26,8 +27,6 @@ export type MiniCommandInput = {
   config?: MiniFrontendInput["config"]
   paths: { home: string; state: string; log: string }
 }
-
-type Model = MiniFrontendInput["model"]
 
 class MiniInputError extends Error {}
 
@@ -43,7 +42,6 @@ export async function runMini(input: MiniCommandInput) {
       const environment = input.server.reconnect ? Env.session() : undefined
       const requested = parseModel(input.model)
       const model = requested ? { providerID: requested.providerID, modelID: requested.id } : undefined
-      const prepare = prepareTarget(input.agent)
       const resolveTarget = async (initial: OpenCodeClient, signal: AbortSignal) => {
         const resolved = await resolveMiniTarget({
           sdk: initial,
@@ -59,7 +57,7 @@ export async function runMini(input: MiniCommandInput) {
               model: requested,
               agent: input.agent,
               environment,
-              prepare,
+              prepare: prepareVariant(input.variant),
               signal,
             }).catch((error) => {
               if (error instanceof Error && error.message === "Session not found")
@@ -84,7 +82,7 @@ export async function runMini(input: MiniCommandInput) {
         next: {
           location: { directory: string }
           agent: string | undefined
-          model: Model
+          model: MiniFrontendInput["model"]
           variant: string | undefined
         },
         signal?: AbortSignal,
@@ -92,12 +90,12 @@ export async function runMini(input: MiniCommandInput) {
         resolveSessionTarget({
           client,
           location: { directory: next.location.directory },
-          agent: next.agent,
+          agent: input.agent ?? next.agent,
           environment,
           model: next.model
             ? { providerID: next.model.providerID, id: next.model.modelID, variant: next.variant }
             : undefined,
-          prepare,
+          prepare: prepareVariant(next.model === undefined ? next.variant : undefined),
           signal,
         }).then((target) => ({
           sessionID: target.session.id,
@@ -118,7 +116,7 @@ export async function runMini(input: MiniCommandInput) {
         createSession: create,
         agent: input.agent,
         model,
-        variant: requested?.variant,
+        variant: input.variant ?? requested?.variant,
         files: [],
         initialInput,
         replay: input.replay ?? true,
@@ -217,10 +215,6 @@ function parseModel(value?: string) {
   } catch {
     throw new MiniInputError("--model must use the format provider/model[#variant]")
   }
-}
-
-function prepareTarget(requestedAgent?: string): SessionTargetPreparation {
-  return async (input) => ({ model: input.model, agent: requestedAgent ?? input.agent })
 }
 
 function fail(message: string): never {

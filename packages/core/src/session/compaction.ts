@@ -288,14 +288,15 @@ export const layer = Layer.effect(
     ) {
       const agent = native ? undefined : yield* agents.get(Agent.ID.make("compaction"))
       const model =
-        (agent?.model &&
-          (yield* models
-            .resolve({ ...context.session, model: agent.model }, catalog.available, {
-              kind: "compaction",
-              agent: agent.id,
-            })
-            .pipe(Effect.orElseSucceed(() => undefined)))) ??
-        context.model
+        (agent && (agent.model || agent.variant !== undefined)
+          ? yield* models
+              .resolve({ ...context.session, model: agent.model ?? context.model.ref }, catalog.available, {
+                kind: "compaction",
+                agent: agent.id,
+                variant: agent.variant,
+              })
+              .pipe(Effect.orElseSucceed(() => undefined))
+          : undefined) ?? context.model
       const ceiling = calculateCeiling(model.limit, buffer)
       // An unknown window never triggers auto compaction, but the compaction request still needs a size to aim for.
       const cap = Number.isFinite(ceiling)
@@ -508,13 +509,15 @@ export const layer = Layer.effect(
       const keepID = background ? undefined : split.keepID
 
       const previous = previousCompaction(messages)
-      const prompt = buildPrompt(
+      const custom = (yield* agents.get(Agent.ID.make("compaction")))?.system
+      const prompt = custom ?? buildPrompt(
         previous !== undefined,
         previous?.summary.includes(LEGACY_HEADING) ?? false,
         yield* flags.enabled("compaction_jobs"),
       )
       const headings = SUMMARY_TEMPLATE.split("\n").filter((line) => line.startsWith("##"))
-      const filled = (text: string) => text.split("\n").some((line) => headings.includes(line.trim()))
+      const filled = (text: string) =>
+        custom === undefined ? text.split("\n").some((line) => headings.includes(line.trim())) : text.trim() !== ""
       const prepared = yield* prepare(context, messages, budget)
       // Size the unchanged request with the number that decided to compact: the last response's count plus an
       // estimate of what came after it. Characters overstate a conversation whose old reasoning the provider drops.
@@ -533,6 +536,10 @@ export const layer = Layer.effect(
           )
           const reply = yield* stream(context, prompted, prepared.options, background)
           if (filled(reply.text)) return reply
+          if (custom !== undefined)
+            return yield* Effect.fail<Failure>({
+              error: { type: "compaction.failed", message: "Compaction produced no summary" },
+            })
 
           const nudged = fitOutput(
             { ...prompted, messages: [...prompted.messages, Message.user(NUDGE)] },
@@ -551,7 +558,7 @@ export const layer = Layer.effect(
           })
         })
 
-      const overhead = Token.estimate(prompt) + Token.estimate(NUDGE)
+      const overhead = Token.estimate(prompt) + (custom === undefined ? Token.estimate(NUDGE) : 0)
       // Automatic compaction starts past the ceiling, so the whole conversation is sent unchanged while the window can
       // still fit the summary. Below that, the history before the tail is sent instead, as before: unchanged when it fits,
       // which still reuses the cache for that shorter prefix, and as text otherwise. Dropping exchanges to make room

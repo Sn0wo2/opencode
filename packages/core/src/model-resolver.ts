@@ -14,8 +14,11 @@ import {
   VideoModelSchema,
 } from "@opencode/ai/effect"
 import { Auth, mergeTransport } from "@opencode/ai/route"
-import { Context, Effect, Layer, Schema, Struct } from "effect"
+import type { Entry } from "@opencode/schema/config"
+import { ConfigModel } from "@opencode/schema/config/model"
+import { Context, Effect, Layer, Option, Schema, Struct } from "effect"
 import { AISDK } from "./aisdk.js"
+import { Config } from "./config.js"
 import { Credential } from "./credential.js"
 import { Integration } from "./integration.js"
 import { Capabilities, Compatibility, ID, Info, Model, Ref, VariantID } from "./model.js"
@@ -148,9 +151,9 @@ export type MediaError =
   | Integration.AuthorizationError
 
 export interface Interface {
-  readonly resolve: (requested?: Ref) => Effect.Effect<Resolved | undefined, Error>
+  readonly resolve: (requested?: Ref, variant?: VariantID) => Effect.Effect<Resolved | undefined, Error>
   /** The model used when nothing is selected: the configured default, or the first available text model. */
-  readonly fallback: () => Effect.Effect<Info | undefined>
+  readonly fallback: () => Effect.Effect<(Info & { readonly defaultVariant?: VariantID }) | undefined>
   readonly resolveModel: (model: Info, variant?: VariantID) => Effect.Effect<Resolved, Error>
   /** An enabled image model by ref, or undefined when no image model has that ref. */
   readonly resolveImage: (ref: Ref) => Effect.Effect<ImageModel | undefined, MediaError>
@@ -161,6 +164,16 @@ export interface Interface {
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/ModelResolver") {}
+
+export function configuredVariant(entries: readonly Entry[], model: Pick<Info, "providerID" | "id">) {
+  const configured = ConfigModel.configured(entries)
+  const variant =
+    configured.variant ??
+    (configured.model?.providerID === model.providerID && configured.model.modelID === model.id
+      ? configured.model.variant
+      : undefined)
+  return variant === undefined ? undefined : VariantID.make(variant)
+}
 
 // Variant resolution adds request-local overlays without changing the committed model snapshot.
 export const withVariant = (
@@ -481,6 +494,7 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const providers = yield* Provider.Service
     const models = yield* Model.Service
+    const config = Option.getOrUndefined(yield* Effect.serviceOption(Config.Service))
     const integrations = yield* Integration.Service
     const npm = yield* Npm.Service
     const aisdk = yield* AISDK.Service
@@ -552,16 +566,22 @@ export const layer = Layer.effect(
         dependencies,
       )
     })
-    const fallback = Effect.fn("ModelResolver.fallback")(function* () {
-      const model = yield* models.default()
-      if (model && hasPackage(model)) return model
-      return (yield* models.available()).find((model) => hasPackage(model) && Model.supportsText(model))
+    const fallback: Interface["fallback"] = Effect.fn("ModelResolver.fallback")(function* () {
+      const preferred = yield* models.default()
+      const model =
+        preferred && hasPackage(preferred)
+          ? preferred
+          : (yield* models.available()).find((model) => hasPackage(model) && Model.supportsText(model))
+      if (!model || !config) return model
+      const variant = configuredVariant(yield* config.entries(), model)
+      return variant === undefined ? model : { ...model, defaultVariant: variant }
     })
     return Service.of({
-      resolve: Effect.fn("ModelResolver.resolve")(function* (requested) {
-        const selected = requested ? yield* models.get(requested.providerID, requested.id) : yield* fallback()
+      resolve: Effect.fn("ModelResolver.resolve")(function* (requested, variant) {
+        const inherited = requested === undefined ? yield* fallback() : undefined
+        const selected = requested ? yield* models.get(requested.providerID, requested.id) : inherited
         if (!selected) return undefined
-        return yield* load(selected, requested?.variant)
+        return yield* load(selected, variant ?? requested?.variant ?? inherited?.defaultVariant)
       }),
       fallback,
       resolveModel: load,
@@ -636,5 +656,5 @@ function usesAPIKeyAuth(packageName: string | undefined) {
 export const node = makeLocationNode({
   service: Service,
   layer,
-  deps: [Provider.node, Model.node, Integration.node, Npm.node, AISDK.node],
+  deps: [Provider.node, Model.node, Integration.node, Npm.node, AISDK.node, Config.node],
 })

@@ -67,7 +67,11 @@ export default Plugin.define({
                 if (!question) return
                 setPending((count) => count + 1)
                 await context.client.session
-                  .generate({ sessionID: route.sessionID, prompt: [instructions, question].join("\n\n") })
+                  .generate({
+                    sessionID: route.sessionID,
+                    prompt: [instructions, question].join("\n\n"),
+                    experimental: { btw: question },
+                  })
                   .then((result) => {
                     context.ui.dialog.show(() => (
                       <Answer question={question} answer={result.text.trim()} markdown={plugins.markdown} />

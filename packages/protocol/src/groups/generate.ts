@@ -1,5 +1,6 @@
 import { Generate } from "@opencode/schema/generate"
 import { Model } from "@opencode/schema/model"
+import { optional } from "@opencode/schema/schema"
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/http-api"
 import {
@@ -27,6 +28,7 @@ const textContract = {
   payload: Schema.Struct({
     prompt: Schema.String,
     model: Model.Ref.pipe(Schema.optional),
+    variant: Schema.String.pipe(optional),
   }),
   success: Schema.Struct({
     data: Schema.Struct({ text: Schema.String }),

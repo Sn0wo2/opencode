@@ -27,6 +27,7 @@ Body:
 - `title?: string`
 - `agent?: string`
 - `model?: Model.Ref`
+- `experimental?: { variant?: string }`
 - `location?: Location.PublicRef` Defaults to the server's working directory. Ignored when parentID is set.
 - `metadata?: Record<string, unknown>` Opaque to OpenCode. Child sessions inherit the parent's metadata unless you pass your own.
 - `permissions?: Permission.Ruleset` Applied on top of the agent's rules. Child sessions inherit the parent's rules unless you pass your own.

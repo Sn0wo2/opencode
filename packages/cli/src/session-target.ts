@@ -1,6 +1,8 @@
 import type { LocationGetOutput, ModelRef, OpenCodeClient, SessionInfo } from "@opencode/client/promise"
 import { Model } from "@opencode/schema/model"
+import { Effect } from "effect"
 import path from "node:path"
+import { waitForPlugins } from "./services/plugin-startup"
 import { errorMessage } from "./util/error"
 
 const SESSION_PAGE_LIMIT = 50
@@ -13,14 +15,14 @@ export type SessionTarget = {
   resume: boolean
 }
 
-export type SessionTargetPreparation = (input: {
+type SessionTargetPreparation = (input: {
   client: OpenCodeClient
   location: LocationGetOutput
   session: SessionInfo | undefined
   model: ModelRef | undefined
   agent: string | undefined
   signal?: AbortSignal
-}) => Promise<{ model: ModelRef | undefined; agent: string | undefined }>
+}) => Promise<{ model: ModelRef | undefined; agent: string | undefined; variant?: string }>
 
 export class SessionTargetMutationError extends Error {
   override readonly name = "SessionTargetMutationError"
@@ -67,6 +69,7 @@ export async function resolveSessionTarget(input: {
           id: input.session,
           agent: prepared.agent,
           model: prepared.model,
+          experimental: prepared.variant === undefined ? undefined : { variant: prepared.variant },
           location: { directory: location.directory },
         },
         ...requestOptions(input.signal),
@@ -83,7 +86,7 @@ export async function resolveSessionTarget(input: {
   return {
     session,
     location,
-    model: prepared.model,
+    model: selected === undefined && prepared.variant !== undefined ? session.model : prepared.model,
     agent: prepared.agent ?? session.agent,
     resume: selected !== undefined,
   }
@@ -93,6 +96,44 @@ export function parseSessionTargetModel(value?: string): ModelRef | undefined {
   if (!value) return
   const model = Model.Ref.parse(value)
   return { providerID: model.providerID, id: model.id, variant: model.variant }
+}
+
+export function prepareVariant(variant?: string): SessionTargetPreparation {
+  return async (input) => {
+    const selection = { model: input.model, agent: input.agent }
+    if (variant === undefined) return selection
+    await Effect.runPromise(waitForPlugins(input.client, input.location.directory), { signal: input.signal })
+    if (!input.session) return { ...selection, variant }
+    const query = { location: { directory: input.location.directory } }
+    const options = requestOptions(input.signal)
+    const { data } = await input.client.model.list(query, ...options)
+    const find = (ref?: ModelRef) => ref && data.find((item) => item.id === ref.id && item.providerID === ref.providerID)
+    const model = input.model
+      ? find(input.model)
+      : await Promise.all([input.client.agent.list(query, ...options), input.client.model.default(query, ...options)]).then(
+          ([agents, fallback]) => {
+            const preferred = find(
+              agents.data.find((agent) => input.agent === undefined || agent.id === input.agent)?.model,
+            )
+            if (preferred) return preferred
+            if (fallback.data?.package) return fallback.data
+            return data.find(
+              (item) =>
+                item.package &&
+                [item.capabilities.input, item.capabilities.output].every(
+                  (types) => types.length === 0 || types.some((type) => type.startsWith("text")),
+                ),
+            )
+          },
+        )
+    if (!model)
+      throw new Error(
+        input.model ? `Model unavailable: ${input.model.providerID}/${input.model.id}` : "No model is available",
+      )
+    if (variant !== "default" && !model.variants.some((item) => item.id === variant))
+      throw new Error(`Variant unavailable for ${model.providerID}/${model.id}: ${variant}`)
+    return { model: { providerID: model.providerID, id: model.id, variant }, agent: input.agent }
+  }
 }
 
 async function selectSession(input: {

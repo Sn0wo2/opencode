@@ -1,5 +1,6 @@
 import { Argument, Flag, GlobalFlag } from "effect/cli"
 import { Schema } from "effect"
+import { ConfigModel } from "@opencode/schema/config/model"
 import { CliFlag } from "../framework/flag"
 import { Spec } from "../framework/spec"
 import { parseServerURL } from "../services/service-urls"
@@ -27,6 +28,12 @@ export const Server = GlobalFlag.Setting("server")({
 })
 
 const ServerFlags = [Standalone, Server] as const
+
+const VariantFlag = Flag.String("variant").pipe(
+  Flag.withSchema(ConfigModel.VariantID),
+  Flag.withDescription("Variant of the selected or inherited model"),
+  Flag.optional,
+)
 
 declare const OPENCODE_CLI_NAME: string | undefined
 
@@ -89,6 +96,7 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
       Flag.optional,
     ),
     prompt: Flag.String("prompt").pipe(Flag.withDescription("Prompt to use"), Flag.optional),
+    variant: VariantFlag,
   },
   commands: [
     Spec.make("upgrade", {
@@ -408,9 +416,10 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
         ),
         model: Flag.String("model").pipe(
           Flag.withAlias("m"),
-          Flag.withDescription("Model to use in the format provider/model"),
+          Flag.withDescription("Model to use in the format provider/model[#variant]"),
           Flag.optional,
         ),
+        variant: VariantFlag,
         agent: Flag.String("agent").pipe(Flag.withDescription("Agent to use"), Flag.optional),
         prompt: Flag.String("prompt").pipe(Flag.withDescription("Prompt to use"), Flag.optional),
         demo: Flag.Boolean("demo").pipe(Flag.withDefault(false), Flag.withHidden),
@@ -444,9 +453,10 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
         ),
         model: Flag.String("model").pipe(
           Flag.withAlias("m"),
-          Flag.withDescription("Model to use in the format provider/model#variant"),
+          Flag.withDescription("Model to use in the format provider/model[#variant]"),
           Flag.optional,
         ),
+        variant: VariantFlag,
         agent: Flag.String("agent").pipe(Flag.withDescription("Agent to use"), Flag.optional),
         format: Flag.Literals("format", ["default", "json"]).pipe(
           Flag.withDescription("Output format"),

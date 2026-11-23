@@ -589,6 +589,7 @@ export const make = Effect.fn("PluginHost.make")(function* (plugin: Pick<Interfa
           title: input?.title,
           agent: input?.agent,
           model: input?.model,
+          variant: input?.experimental?.variant,
           metadata: input?.metadata,
           permissions: input?.permissions,
           ...(input?.parentID === undefined

@@ -77,7 +77,7 @@ describe("ConfigAgentPlugin.Plugin", () => {
       frontmatter: "model:\n  providerID: example\n  model: chat",
       model: "example/chat",
     },
-    { name: "standalone variant", frontmatter: "variant: high", model: undefined },
+    { name: "standalone variant", frontmatter: "variant: high", model: undefined, variant: Model.VariantID.make("high") },
     {
       name: "embedded native variant with an ignored separate variant",
       frontmatter: "model: example/chat#high\nvariant: low",
@@ -107,6 +107,7 @@ permissions:
               : item.frontmatter,
           )
           expect(agent.model).toEqual(item.model === undefined ? undefined : Model.Ref.parse(item.model))
+          expect(agent.variant).toBe(item.variant)
           expect(agent.request).toEqual({
             settings: {},
             headers: native ? { "x-agent": "native" } : {},

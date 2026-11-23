@@ -32,6 +32,7 @@ export class Info extends Schema.Class<Info>("ConfigExperimental.Info")({
         description:
           "Default model for the generate_video tool when the agent doesn't choose one, as providerID/modelID. Falls back to automatic selection when it isn't available.",
       }),
+      variant: ConfigModel.VariantID.pipe(optional),
     }),
   ])
     .pipe(optional)
@@ -50,6 +51,7 @@ export class Info extends Schema.Class<Info>("ConfigExperimental.Info")({
         description:
           "Default model for the generate_image tool when the agent doesn't choose one, as providerID/modelID. Falls back to automatic selection when it isn't available.",
       }),
+      variant: ConfigModel.VariantID.pipe(optional),
     }),
   ])
     .pipe(optional)

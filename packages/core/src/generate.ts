@@ -33,6 +33,7 @@ import { ModelRetry } from "./model-retry.js"
 export interface TextInput {
   readonly prompt: string
   readonly model?: Model.Ref
+  readonly variant?: string
 }
 
 export interface VideoInput {
@@ -150,7 +151,7 @@ export const layer = Layer.effect(
 
     const runText = Effect.fn("Generate.text")(function* (input: TextInput) {
       const resolved = yield* resolver
-        .resolve(input.model)
+        .resolve(input.model, input.variant === undefined ? undefined : Model.VariantID.make(input.variant))
         .pipe(
           Effect.catchTag(
             [
@@ -163,9 +164,11 @@ export const layer = Layer.effect(
             ],
             (error) =>
               Effect.fail(
-                input.model
-                  ? resolutionError(input.model, "chat", error)
-                  : new UnavailableError({ message: error.message, service: error.providerID }),
+                input.variant !== undefined && error._tag === "SessionRunnerModel.VariantUnavailableError"
+                  ? new InvalidRequestError({ message: error.message, field: "variant" })
+                  : input.model
+                    ? resolutionError(input.model, "chat", error)
+                    : new UnavailableError({ message: error.message, service: error.providerID }),
               ),
           ),
         )

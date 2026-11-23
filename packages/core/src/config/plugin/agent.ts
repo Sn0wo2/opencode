@@ -3,6 +3,7 @@ export * as ConfigAgentPlugin from "./agent.js"
 import { define } from "@opencode/plugin/effect/plugin"
 import { Document, Info, type Entry } from "@opencode/schema/config"
 import { ConfigAgent } from "@opencode/schema/config/agent"
+import { ConfigModel } from "@opencode/schema/config/model"
 import path from "path"
 import { Effect, Result, SchemaIssue, SchemaParser } from "effect"
 import { Agent } from "../../agent.js"
@@ -29,7 +30,7 @@ const decodeAgent = SchemaParser.decodeUnknownResult(ConfigAgent.Info)
 const decodeLegacyAgent = SchemaParser.decodeUnknownResult(ConfigAgentV1.Info)
 const formatIssue = SchemaIssue.makeFormatterDefault()
 type PathAction = FileAccess.ExternalDirectoryAuthorization["action"] | typeof ReadTool.name | typeof EditTool.name
-const agentKeys = new Set(["variant", ...Object.keys(ConfigAgent.Info.fields)])
+const agentKeys = new Set(Object.keys(ConfigAgent.Info.fields))
 // Fields only V2 understands. A file that uses any of them is read as V2, whatever else it contains.
 const nativeKeys = ["permissions", "request", "system", "disabled"]
 
@@ -82,12 +83,12 @@ export const Plugin = define({
           const exists = editor.get(agentID) !== undefined
           editor.update(agentID, (agent) => {
             if (!exists) agent.permissions.push(...permissions)
-            if (item.model !== undefined)
-              agent.model = {
-                id: item.model.model,
-                providerID: item.model.providerID,
-                ...(item.model.variant === undefined ? {} : { variant: item.model.variant }),
-              }
+            if (item.model !== undefined) {
+              agent.model = ConfigModel.ref(item.model, item.variant)
+              delete agent.variant
+            } else if (item.variant !== undefined) {
+              agent.variant = item.variant
+            }
             if (item.request !== undefined) {
               Object.assign(agent.request.headers, item.request.headers ?? {})
               Object.assign(agent.request.body, item.request.body ?? {})
@@ -164,13 +165,12 @@ const decode = Effect.fnUntraced(function* (
   const legacy = unsupported.length > 0 && !keys.some((key) => nativeKeys.includes(key))
   if (!legacy && unsupported.length > 0)
     yield* Effect.logWarning("ignored unsupported agent fields", { path: file.filepath, fields: unsupported })
-  // Native files join a legacy model + variant without sending request/permissions through migration.
   const decoded = legacy
     ? Result.map(
         decodeLegacyAgent({ name, ...markdown.data, prompt: body }, { errors: "all" }),
         ConfigMigrateV1.migrateAgent,
       )
-    : decodeAgent({ ...ConfigMarkdown.joinLegacyVariant(markdown.data), system: body }, { errors: "all" })
+    : decodeAgent({ ...markdown.data, system: body }, { errors: "all" })
   if (Result.isFailure(decoded)) {
     yield* Effect.logWarning("agent file skipped", {
       filepath: file.filepath,

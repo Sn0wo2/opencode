@@ -1234,6 +1234,14 @@ export function Prompt(props: PromptProps) {
       })
       return false
     }
+    if (usesModel && local.model.variant.unavailable()) {
+      toast.show({
+        title: "Variant unavailable",
+        message: `${selection.providerID}/${selection.modelID} does not support "${selection.variant}"`,
+        variant: "warning",
+      })
+      return false
+    }
 
     // Snapshot the composer and clear it synchronously, before the first await.
     // Everything below reads the snapshot: text typed while a request is in
@@ -1302,16 +1310,18 @@ export function Prompt(props: PromptProps) {
           variant,
         },
       })
+      const restoreStartup = local.model.setStartupSession(created.id)
       if (newSessionID !== undefined) created.request.catch(() => args.restoreNewSessionID(newSessionID))
       sessionID = created.id
       session = data.session.get(created.id)
       newSession = {
-        gate: created.request.then(async (info) => {
+        gate: created.request.then(async () => {
           if (terminalEnvironment.variables !== undefined) {
             await client.api.session.environment({ sessionID: created.id, variables: terminalEnvironment.variables })
           }
         }),
         recover: (error) => {
+          restoreStartup?.()
           toast.show({
             title: data.session.get(created.id) ? "Failed to set up session" : "Creating a session failed",
             message: errorMessage(error),

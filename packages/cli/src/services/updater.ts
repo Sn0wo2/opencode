@@ -1,7 +1,14 @@
 import { Global } from "@opencode/util/global"
 import { AppProcess } from "@opencode/util/process"
 import { EffectFlock } from "@opencode/util/effect-flock"
-import { OPENCODE_ARTIFACT, OPENCODE_CHANNEL, OPENCODE_LOCAL, OPENCODE_VERSION } from "../version"
+import {
+  OPENCODE_ARTIFACT,
+  OPENCODE_CHANNEL,
+  OPENCODE_CLI_NAME,
+  OPENCODE_LOCAL,
+  OPENCODE_PACKAGE_NAME,
+  OPENCODE_VERSION,
+} from "../version"
 import { Context, Duration, Effect, FileSystem, Layer, Option, Ref, Schema } from "effect"
 import { ChildProcess } from "effect/process"
 import { parse, type ParseError } from "jsonc-parser"
@@ -159,6 +166,7 @@ const make = Effect.gen(function* () {
     if (Object.values(manifest.bin ?? {}).some((bin) => path.resolve(directory, bin) === executable))
       return manifest.name
   }).pipe(Effect.orElseSucceed(() => undefined))
+  const detectedPackage = installedPackage ?? OPENCODE_PACKAGE_NAME
   // "opencode" is Homebrew Core's formula; the others are published to anomalyco/tap.
   const installedFormula = ["opencode", "opencode-beta", "opencode-v2"].find((name) =>
     executable.includes(`${path.sep}Cellar${path.sep}${name}${path.sep}`),
@@ -246,7 +254,7 @@ const make = Effect.gen(function* () {
       new UpgradeError({
         title: "Git Bash is required to update OpenCode",
         detail: "The OpenCode installer runs with Git Bash on Windows, and it was not found.",
-        retry: "Install Git for Windows or set OPENCODE_GIT_BASH_PATH, then run opencode upgrade again.",
+        retry: `Install Git for Windows or set OPENCODE_GIT_BASH_PATH, then run ${OPENCODE_CLI_NAME} upgrade again.`,
       }),
     )
   })
@@ -255,15 +263,15 @@ const make = Effect.gen(function* () {
     if (executable === curlBinary) return "curl"
     if (installedFormula) return "brew"
     if (installedWinget) return "winget"
-    if (!installedPackage || installedOwner) return
+    if (!detectedPackage || installedOwner) return
 
     const parts = executable.toLowerCase().split(path.sep).map((part) => part.replace(/^\./, ""))
     const checks: Array<{ method: Method; command: string[] }> = [
-      { method: "npm", command: [npm, "list", "-g", "--depth=0", ...npmPrefixArgs, installedPackage] },
-      { method: "pnpm", command: ["pnpm", "list", "-g", "--depth=0", installedPackage] },
+      { method: "npm", command: [npm, "list", "-g", "--depth=0", ...npmPrefixArgs, detectedPackage] },
+      { method: "pnpm", command: ["pnpm", "list", "-g", "--depth=0", detectedPackage] },
       { method: "bun", command: ["bun", "pm", "ls", "-g"] },
       { method: "yarn", command: ["yarn", "global", "list"] },
-      { method: "vp", command: ["vp", "list", "-g", "--json", installedPackage] },
+      { method: "vp", command: ["vp", "list", "-g", "--json", detectedPackage] },
     ]
     checks.sort((a, b) => Number(parts.includes(b.method)) - Number(parts.includes(a.method)))
     const results = yield* Effect.forEach(
@@ -276,23 +284,23 @@ const make = Effect.gen(function* () {
       { concurrency: "unbounded" },
     )
     return results.find((result) => {
-      if (result.check.method !== "vp") return result.result.stdout.includes(installedPackage)
+      if (result.check.method !== "vp") return result.result.stdout.includes(detectedPackage)
       // Vite+ repeats the filter in its successful no-match message, so substring detection would be a false positive.
       return Option.exists(decodeVpPackages(result.result.stdout), (packages) =>
-        packages.some((item) => item.name === installedPackage),
+        packages.some((item) => item.name === detectedPackage),
       )
     })?.check.method
   })
 
   const removalCommand = (method: Method) => {
     if (method === "winget") return ["winget", "uninstall", ...wingetArgs]
-    if (method === "curl" || method === "brew" || !installedPackage) return undefined
+    if (method === "curl" || method === "brew" || !detectedPackage) return undefined
     const commands = {
-      npm: [npm, "uninstall", "--global", ...npmPrefixArgs, installedPackage],
-      pnpm: ["pnpm", "remove", "--global", installedPackage],
-      bun: ["bun", "remove", "--global", installedPackage],
-      yarn: ["yarn", "global", "remove", installedPackage],
-      vp: ["vp", "uninstall", "-g", installedPackage],
+      npm: [npm, "uninstall", "--global", ...npmPrefixArgs, detectedPackage],
+      pnpm: ["pnpm", "remove", "--global", detectedPackage],
+      bun: ["bun", "remove", "--global", detectedPackage],
+      yarn: ["yarn", "global", "remove", detectedPackage],
+      vp: ["vp", "uninstall", "-g", detectedPackage],
     }
     return commands[method]
   }
@@ -316,12 +324,16 @@ const make = Effect.gen(function* () {
     const distribution = method === "brew" ? "homebrew" : "npm"
     // Homebrew Core builds its formula on its own schedule, so the tap release does not describe it.
     const core = method === "brew" && installedFormula === "opencode"
+    const fork = distribution === "npm" ? OPENCODE_PACKAGE_NAME : undefined
+    const title = fork ? OPENCODE_CLI_NAME : "OpenCode"
     const response = yield* Effect.tryPromise({
       try: (signal) =>
         fetch(
-          core
-            ? "https://formulae.brew.sh/api/formula/opencode.json"
-            : `https://opencode.ai/update/api/${encodeURIComponent(channel)}/${encodeURIComponent(OPENCODE_ARTIFACT)}/${distribution}?current=${encodeURIComponent(OPENCODE_VERSION)}`,
+          fork
+            ? `https://registry.npmjs.org/${encodeURIComponent(fork)}/latest`
+            : core
+              ? "https://formulae.brew.sh/api/formula/opencode.json"
+              : `https://opencode.ai/update/api/${encodeURIComponent(channel)}/${encodeURIComponent(OPENCODE_ARTIFACT)}/${distribution}?current=${encodeURIComponent(OPENCODE_VERSION)}`,
           {
             signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
           },
@@ -329,9 +341,9 @@ const make = Effect.gen(function* () {
       catch: (cause) =>
         new UpgradeError(
           {
-            title: "Could not check for OpenCode updates",
+            title: `Could not check for ${title} updates`,
             detail: errorDetail(cause),
-            retry: "Check your network, then run opencode upgrade again.",
+            retry: `Check your network, then run ${OPENCODE_CLI_NAME} upgrade again.`,
           },
           { cause },
         ),
@@ -339,7 +351,7 @@ const make = Effect.gen(function* () {
     if (!response.ok)
       return yield* Effect.fail(
         new UpgradeError({
-          title: "Could not check for OpenCode updates",
+          title: `Could not check for ${title} updates`,
           detail: `The update service returned HTTP ${response.status}.`,
           retry: "Try again in a few minutes.",
         }),
@@ -350,7 +362,7 @@ const make = Effect.gen(function* () {
         catch: (cause) =>
           new UpgradeError(
             {
-              title: "Could not read the OpenCode update information",
+              title: `Could not read the ${title} update information`,
               detail: errorDetail(cause),
               retry: "Try again in a few minutes.",
             },
@@ -358,11 +370,11 @@ const make = Effect.gen(function* () {
           ),
       })
     const version = core ? data.versions?.stable : data.version
-    const packageName = core ? "opencode" : data.metadata?.package
+    const packageName = fork ?? (core ? "opencode" : data.metadata?.package)
     if (!version || !packageName)
       return yield* Effect.fail(
         new UpgradeError({
-          title: "Could not read the OpenCode update information",
+          title: `Could not read the ${title} update information`,
           detail: "The update service returned incomplete release information.",
           retry: "Try again in a few minutes.",
         }),
@@ -378,7 +390,7 @@ const make = Effect.gen(function* () {
           title: "Could not check for OpenCode updates",
           detail,
           command: ["winget", "search", ...wingetArgs].join(" "),
-          retry: "Fix the issue above, then run opencode upgrade again.",
+          retry: `Fix the issue above, then run ${OPENCODE_CLI_NAME} upgrade again.`,
         },
         cause === undefined ? undefined : { cause },
       )
@@ -459,7 +471,7 @@ const make = Effect.gen(function* () {
           title: input.title ?? `${installNames[input.method]} could not install OpenCode`,
           detail,
           command: (input.displayCommand ?? input.command).join(" "),
-          retry: input.retry ?? "Fix the issue above, then run opencode upgrade again.",
+          retry: input.retry ?? `Fix the issue above, then run ${OPENCODE_CLI_NAME} upgrade again.`,
         },
         cause === undefined ? undefined : { cause },
       )
@@ -542,7 +554,7 @@ const make = Effect.gen(function* () {
             command: ["curl", "-fsSL", "-o", installer, "https://opencode.ai/v2/install"],
             displayCommand: ["curl", "-fsSL", "https://opencode.ai/v2/install"],
             title: "Could not download the OpenCode installer",
-            retry: "Check your network, then run opencode upgrade again.",
+            retry: `Check your network, then run ${OPENCODE_CLI_NAME} upgrade again.`,
           })
           return yield* retaining(
             method,
@@ -581,7 +593,7 @@ const make = Effect.gen(function* () {
               {
                 title: "Could not prepare the OpenCode upgrade",
                 detail: errorDetail(cause),
-                retry: "Fix the issue above, then run opencode upgrade again.",
+                retry: `Fix the issue above, then run ${OPENCODE_CLI_NAME} upgrade again.`,
               },
               { cause },
             ),
@@ -599,7 +611,7 @@ const make = Effect.gen(function* () {
         new UpgradeError({
           title: `${installNames[method]} did not update this copy of OpenCode`,
           detail: `${installNames[method]} reported success, but ${executable} is still version ${installed ?? "unknown"}.`,
-          retry: `Update the copy at ${executable} with the package manager that installed it, then run opencode upgrade again.`,
+          retry: `Update the copy at ${executable} with the package manager that installed it, then run ${OPENCODE_CLI_NAME} upgrade again.`,
         }),
       )
   })

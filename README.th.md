@@ -14,6 +14,11 @@
   <a href="https://github.com/anomalyco/opencode/actions/workflows/release.yml"><img alt="สถานะการสร้าง" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/release.yml?style=flat-square&branch=dev" /></a>
 </p>
 
+> [!IMPORTANT]
+> **Fork ดูแลโดย [𝑴𝒆𝟎𝒘𝒐](https://github.com/Sn0wo2)**: ติดตาม upstream `dev` และเผยแพร่ JavaScript bundles ที่บิลด์ไว้ล่วงหน้าไปยัง npm เป็น [`@me0wo/opencode`](https://www.npmjs.com/package/@me0wo/opencode) (`opencode-patcher`) ทุกครั้งที่ upstream เดินหน้า; npm เป็นช่องทางการแจกจ่ายเพียงช่องทางเดียว
+>
+> เพิ่มจาก upstream: กำหนด **BTW / Goal** prompt และโมเดลได้ (`btw.prompt` / `btw.model` / `goal.prompt` / `goal.model`) ปรับ **compaction สรุป** prompt ได้ (`agents.compaction.system`) ยอมรับอัตโนมัติครอบคลุมเซสชันย่อย โหลด TypeScript plugin บน Node ได้ (sucrase) และแก้ไข Bun runtime
+
 <p align="center">
   <a href="README.md">English</a> |
   <a href="README.zh.md">简体中文</a> |

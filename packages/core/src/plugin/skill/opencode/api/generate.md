@@ -7,6 +7,7 @@ Run one stateless model generation using the server's base configuration and ret
 Body:
 - `prompt: string`
 - `model?: Model.Ref`
+- `variant?: string`
 
 Returns: `GenerateTextResponse`
 
